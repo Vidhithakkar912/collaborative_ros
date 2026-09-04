@@ -1,0 +1,9 @@
+# VS Code
+.vscode/
+
+# YOLO generated runs and weights
+runs/
+*.pt
+
+# Large archives
+*.zip
