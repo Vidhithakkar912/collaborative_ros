@@ -1,0 +1,20 @@
+simulation
+ros2 launch multi_robots tb3_world.launch.py(gazebo)
+ros2 launch multi_robots tb3_nav2.launch.py(navigation)
+ros2 launch multi_robots multi_robot.launch.py(llm)
+ros2 run multi_robots chat_gui(gui)
+real
+system side
+ros2 launch amr_system_utils robot_urdf_tf_state_publisher.launch.py(urdf)
+ros2 launch amr_system_utils ydlidar_launch_x2.launch.py(lidar)
+ros2 launch amr_system_utils cartographer_mapping.launch.py(slam)
+zenoh_bridge_ros2_dds -c zenoh_config.json(zenoh)
+ros2 launch realsense2_camera rs_launch.py \(camera rgbd)
+    depth_module.depth_profile:=848x480x30 \
+    rgb_camera.color_profile:=848x480x30 \
+    align_depth.enable:=true
+user side
+zenoh_bridge_ros2_dds -e tcp/192.168.0.124:7447(zenoh)
+ros2 run multi_robots chat_gui(gui)
+ros2 launch multi_robots multi_robot.launch.py(llm)
+

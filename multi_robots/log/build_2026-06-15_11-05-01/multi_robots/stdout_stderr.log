@@ -1,0 +1,110 @@
+running egg_info
+creating build/multi_robots/multi_robots.egg-info
+writing build/multi_robots/multi_robots.egg-info/PKG-INFO
+writing dependency_links to build/multi_robots/multi_robots.egg-info/dependency_links.txt
+writing entry points to build/multi_robots/multi_robots.egg-info/entry_points.txt
+writing requirements to build/multi_robots/multi_robots.egg-info/requires.txt
+writing top-level names to build/multi_robots/multi_robots.egg-info/top_level.txt
+writing manifest file 'build/multi_robots/multi_robots.egg-info/SOURCES.txt'
+reading manifest file 'build/multi_robots/multi_robots.egg-info/SOURCES.txt'
+writing manifest file 'build/multi_robots/multi_robots.egg-info/SOURCES.txt'
+running build
+running build_py
+creating /home/einfochips/ros2_ws/src/multi_robots/build/multi_robots/build/lib/multi_robots
+copying multi_robots/multi_Robot_planner.py -> /home/einfochips/ros2_ws/src/multi_robots/build/multi_robots/build/lib/multi_robots
+copying multi_robots/utils.py -> /home/einfochips/ros2_ws/src/multi_robots/build/multi_robots/build/lib/multi_robots
+copying multi_robots/__init__.py -> /home/einfochips/ros2_ws/src/multi_robots/build/multi_robots/build/lib/multi_robots
+copying multi_robots/goal_pose.py -> /home/einfochips/ros2_ws/src/multi_robots/build/multi_robots/build/lib/multi_robots
+copying multi_robots/chat_gui.py -> /home/einfochips/ros2_ws/src/multi_robots/build/multi_robots/build/lib/multi_robots
+copying multi_robots/object_detection.py -> /home/einfochips/ros2_ws/src/multi_robots/build/multi_robots/build/lib/multi_robots
+copying multi_robots/llm_nav.py -> /home/einfochips/ros2_ws/src/multi_robots/build/multi_robots/build/lib/multi_robots
+copying multi_robots/llm_decision_making.py -> /home/einfochips/ros2_ws/src/multi_robots/build/multi_robots/build/lib/multi_robots
+copying multi_robots/object_tracking.py -> /home/einfochips/ros2_ws/src/multi_robots/build/multi_robots/build/lib/multi_robots
+copying multi_robots/multi_Robot_planner_regex.py -> /home/einfochips/ros2_ws/src/multi_robots/build/multi_robots/build/lib/multi_robots
+running install
+running install_lib
+creating /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/lib/python3.10/site-packages/multi_robots
+copying /home/einfochips/ros2_ws/src/multi_robots/build/multi_robots/build/lib/multi_robots/multi_Robot_planner.py -> /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/lib/python3.10/site-packages/multi_robots
+copying /home/einfochips/ros2_ws/src/multi_robots/build/multi_robots/build/lib/multi_robots/utils.py -> /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/lib/python3.10/site-packages/multi_robots
+copying /home/einfochips/ros2_ws/src/multi_robots/build/multi_robots/build/lib/multi_robots/__init__.py -> /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/lib/python3.10/site-packages/multi_robots
+copying /home/einfochips/ros2_ws/src/multi_robots/build/multi_robots/build/lib/multi_robots/goal_pose.py -> /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/lib/python3.10/site-packages/multi_robots
+copying /home/einfochips/ros2_ws/src/multi_robots/build/multi_robots/build/lib/multi_robots/chat_gui.py -> /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/lib/python3.10/site-packages/multi_robots
+copying /home/einfochips/ros2_ws/src/multi_robots/build/multi_robots/build/lib/multi_robots/object_detection.py -> /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/lib/python3.10/site-packages/multi_robots
+copying /home/einfochips/ros2_ws/src/multi_robots/build/multi_robots/build/lib/multi_robots/llm_nav.py -> /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/lib/python3.10/site-packages/multi_robots
+copying /home/einfochips/ros2_ws/src/multi_robots/build/multi_robots/build/lib/multi_robots/llm_decision_making.py -> /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/lib/python3.10/site-packages/multi_robots
+copying /home/einfochips/ros2_ws/src/multi_robots/build/multi_robots/build/lib/multi_robots/object_tracking.py -> /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/lib/python3.10/site-packages/multi_robots
+copying /home/einfochips/ros2_ws/src/multi_robots/build/multi_robots/build/lib/multi_robots/multi_Robot_planner_regex.py -> /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/lib/python3.10/site-packages/multi_robots
+byte-compiling /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/lib/python3.10/site-packages/multi_robots/multi_Robot_planner.py to multi_Robot_planner.cpython-310.pyc
+byte-compiling /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/lib/python3.10/site-packages/multi_robots/utils.py to utils.cpython-310.pyc
+byte-compiling /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/lib/python3.10/site-packages/multi_robots/__init__.py to __init__.cpython-310.pyc
+byte-compiling /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/lib/python3.10/site-packages/multi_robots/goal_pose.py to goal_pose.cpython-310.pyc
+byte-compiling /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/lib/python3.10/site-packages/multi_robots/chat_gui.py to chat_gui.cpython-310.pyc
+byte-compiling /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/lib/python3.10/site-packages/multi_robots/object_detection.py to object_detection.cpython-310.pyc
+byte-compiling /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/lib/python3.10/site-packages/multi_robots/llm_nav.py to llm_nav.cpython-310.pyc
+byte-compiling /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/lib/python3.10/site-packages/multi_robots/llm_decision_making.py to llm_decision_making.cpython-310.pyc
+byte-compiling /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/lib/python3.10/site-packages/multi_robots/object_tracking.py to object_tracking.cpython-310.pyc
+byte-compiling /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/lib/python3.10/site-packages/multi_robots/multi_Robot_planner_regex.py to multi_Robot_planner_regex.cpython-310.pyc
+running install_data
+creating /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/share/ament_index/resource_index/packages
+copying resource/multi_robots -> /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/share/ament_index/resource_index/packages
+copying package.xml -> /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/share/multi_robots
+creating /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/share/multi_robots/launch
+copying launch/tb3_world2.launch.py -> /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/share/multi_robots/launch
+copying launch/tb3_world.launch.py -> /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/share/multi_robots/launch
+copying launch/multi_robot.launch.py -> /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/share/multi_robots/launch
+copying launch/drive.launch.py -> /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/share/multi_robots/launch
+copying launch/tb3_nav2.launch.py -> /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/share/multi_robots/launch
+creating /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/share/multi_robots/launch/nav2_bringup
+creating /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/share/multi_robots/params
+copying params/burger_nav2_params.yaml -> /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/share/multi_robots/params
+copying params/burger_cam_nav2_params.yaml -> /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/share/multi_robots/params
+copying params/waffle_bridge.yaml -> /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/share/multi_robots/params
+copying params/waffle_pi_bridge.yaml -> /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/share/multi_robots/params
+copying params/burger_cam_bridge.yaml -> /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/share/multi_robots/params
+copying params/waffle_pi.yaml -> /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/share/multi_robots/params
+copying params/burger_bridge.yaml -> /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/share/multi_robots/params
+copying params/waffle_nav2_params.yaml -> /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/share/multi_robots/params
+creating /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/share/multi_robots/rviz
+copying rviz/tb3_navigation2.rviz -> /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/share/multi_robots/rviz
+creating /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/share/multi_robots/worlds
+copying worlds/tb3_world.world -> /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/share/multi_robots/worlds
+creating /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/share/multi_robots/models/turtlebot3_burger
+copying models/turtlebot3_burger/model.sdf -> /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/share/multi_robots/models/turtlebot3_burger
+copying models/turtlebot3_burger/model.config -> /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/share/multi_robots/models/turtlebot3_burger
+copying models/turtlebot3_burger/model-1_4.sdf -> /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/share/multi_robots/models/turtlebot3_burger
+creating /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/share/multi_robots/models/turtlebot3_waffle
+copying models/turtlebot3_waffle/model.sdf -> /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/share/multi_robots/models/turtlebot3_waffle
+copying models/turtlebot3_waffle/model.sdf.bck -> /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/share/multi_robots/models/turtlebot3_waffle
+copying models/turtlebot3_waffle/model.config -> /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/share/multi_robots/models/turtlebot3_waffle
+copying models/turtlebot3_waffle/model-1_4.sdf -> /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/share/multi_robots/models/turtlebot3_waffle
+creating /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/share/multi_robots/models/turtlebot3_waffle_pi
+creating /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/share/multi_robots/config
+copying config/robots.yaml -> /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/share/multi_robots/config
+copying config/planner.yaml -> /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/share/multi_robots/config
+copying config/locations.yaml -> /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/share/multi_robots/config
+creating /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/share/multi_robots/urdf
+copying urdf/turtlebot3_burger.urdf -> /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/share/multi_robots/urdf
+copying urdf/turtlebot3_waffle.urdf.bck -> /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/share/multi_robots/urdf
+copying urdf/turtlebot3_waffle.urdf -> /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/share/multi_robots/urdf
+copying urdf/turtlebot3_waffle copy.urdf -> /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/share/multi_robots/urdf
+copying urdf/turtlebot3_waffle.urdf.bck2 -> /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/share/multi_robots/urdf
+copying urdf/common_properties.urdf -> /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/share/multi_robots/urdf
+copying urdf/turtlebot3_burger_cam.urdf -> /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/share/multi_robots/urdf
+copying urdf/turtlebot3_waffle_pi.urdf -> /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/share/multi_robots/urdf
+creating /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/share/multi_robots/map
+copying map/my_map.pgm -> /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/share/multi_robots/map
+copying map/map.yaml -> /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/share/multi_robots/map
+copying map/map.pgm -> /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/share/multi_robots/map
+copying map/my_map.yaml -> /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/share/multi_robots/map
+running install_egg_info
+Copying build/multi_robots/multi_robots.egg-info to /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/lib/python3.10/site-packages/multi_robots-0.0.0-py3.10.egg-info
+running install_scripts
+Installing chat_gui script to /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/lib/multi_robots
+Installing goal_pose script to /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/lib/multi_robots
+Installing llm_decision script to /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/lib/multi_robots
+Installing llm_nav script to /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/lib/multi_robots
+Installing llm_obj script to /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/lib/multi_robots
+Installing object_detection script to /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/lib/multi_robots
+Installing object_tracking script to /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/lib/multi_robots
+Installing planner script to /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/lib/multi_robots
+writing list of installed files to '/home/einfochips/ros2_ws/src/multi_robots/build/multi_robots/install.log'

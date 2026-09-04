@@ -1,0 +1,75 @@
+robots:
+
+  transporter:
+    name: transporter
+    type: mobile_transport_robot
+
+    description: >
+      Mobile robot for navigation, perception and transport.
+
+    capabilities:
+      - navigation
+      - object_detection
+      - object_localization
+      - transport
+      - find
+
+    skills:
+      - object-detection
+      - find_object
+      - report_object_position
+      - navigate_to
+      - transport
+      - handover
+      - stop
+
+    constraints:
+      can_pick: false
+      can_place: false
+      payload_kg: 10.0
+
+  manipulator:
+    name: manipulator
+    type: mobile_manipulator
+
+    description: >
+      Mobile robot equipped with OpenManipulator-X.
+
+    capabilities:
+      - find
+      - navigation
+      - object_detection
+      - pick
+      - place
+      - transport
+      - report_object_position
+      - navigate_to
+
+    skills:
+      - pick
+      - place
+      - handover
+      - stop
+
+    constraints:
+      can_pick: true
+      can_place: true
+      payload_kg: 0.5
+      arm_reach_m: 0.5
+
+
+known_objects:
+  - ball
+  - box
+  - bottle
+  - chair
+
+
+rules:
+  - The transporter cannot pick objects.
+  - The transporter cannot place objects.
+  - The manipulator can pick and place objects.
+  - A task requiring picking must be assigned to a robot with pick capability.
+  - A task requiring placing must be assigned to a robot with place capability.
+  - A task depending on another task must wait for its dependency.
+  - Do not assign a robot a skill that it does not have.

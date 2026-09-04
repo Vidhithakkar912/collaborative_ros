@@ -1,0 +1,37 @@
+[0.668s] Invoking command in '/home/einfochips/ros2_ws/src/multi_robots': PYTHONPATH=/home/einfochips/ros2_ws/src/multi_robots/build/multi_robots/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base build/multi_robots build --build-base /home/einfochips/ros2_ws/src/multi_robots/build/multi_robots/build install --record /home/einfochips/ros2_ws/src/multi_robots/build/multi_robots/install.log --single-version-externally-managed install_data
+[0.947s] running egg_info
+[0.967s] writing build/multi_robots/multi_robots.egg-info/PKG-INFO
+[0.968s] writing dependency_links to build/multi_robots/multi_robots.egg-info/dependency_links.txt
+[0.968s] writing entry points to build/multi_robots/multi_robots.egg-info/entry_points.txt
+[0.968s] writing requirements to build/multi_robots/multi_robots.egg-info/requires.txt
+[0.968s] writing top-level names to build/multi_robots/multi_robots.egg-info/top_level.txt
+[1.010s] reading manifest file 'build/multi_robots/multi_robots.egg-info/SOURCES.txt'
+[1.012s] writing manifest file 'build/multi_robots/multi_robots.egg-info/SOURCES.txt'
+[1.012s] running build
+[1.012s] running build_py
+[1.013s] copying multi_robots/multi_Robot_planner.py -> /home/einfochips/ros2_ws/src/multi_robots/build/multi_robots/build/lib/multi_robots
+[1.013s] copying multi_robots/chat_gui.py -> /home/einfochips/ros2_ws/src/multi_robots/build/multi_robots/build/lib/multi_robots
+[1.013s] copying multi_robots/object_detection.py -> /home/einfochips/ros2_ws/src/multi_robots/build/multi_robots/build/lib/multi_robots
+[1.013s] copying multi_robots/llm_nav.py -> /home/einfochips/ros2_ws/src/multi_robots/build/multi_robots/build/lib/multi_robots
+[1.014s] copying multi_robots/object_tracking.py -> /home/einfochips/ros2_ws/src/multi_robots/build/multi_robots/build/lib/multi_robots
+[1.014s] running install
+[1.018s] running install_lib
+[1.041s] running install_data
+[1.041s] copying launch/multi_robot.launch.py -> /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/share/multi_robots/launch
+[1.042s] copying worlds/tb3_world.world -> /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/share/multi_robots/worlds
+[1.042s] copying config/robots.yaml -> /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/share/multi_robots/config
+[1.042s] copying config/planner.yaml -> /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/share/multi_robots/config
+[1.043s] running install_egg_info
+[1.066s] removing '/home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/lib/python3.10/site-packages/multi_robots-0.0.0-py3.10.egg-info' (and everything under it)
+[1.067s] Copying build/multi_robots/multi_robots.egg-info to /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/lib/python3.10/site-packages/multi_robots-0.0.0-py3.10.egg-info
+[1.068s] running install_scripts
+[1.109s] Installing chat_gui script to /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/lib/multi_robots
+[1.109s] Installing goal_pose script to /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/lib/multi_robots
+[1.109s] Installing llm_decision script to /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/lib/multi_robots
+[1.110s] Installing llm_nav script to /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/lib/multi_robots
+[1.110s] Installing llm_obj script to /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/lib/multi_robots
+[1.110s] Installing object_detection script to /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/lib/multi_robots
+[1.110s] Installing object_tracking script to /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/lib/multi_robots
+[1.110s] Installing planner script to /home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/lib/multi_robots
+[1.111s] writing list of installed files to '/home/einfochips/ros2_ws/src/multi_robots/build/multi_robots/install.log'
+[1.130s] Invoked command in '/home/einfochips/ros2_ws/src/multi_robots' returned '0': PYTHONPATH=/home/einfochips/ros2_ws/src/multi_robots/build/multi_robots/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/einfochips/ros2_ws/src/multi_robots/install/multi_robots/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base build/multi_robots build --build-base /home/einfochips/ros2_ws/src/multi_robots/build/multi_robots/build install --record /home/einfochips/ros2_ws/src/multi_robots/build/multi_robots/install.log --single-version-externally-managed install_data
