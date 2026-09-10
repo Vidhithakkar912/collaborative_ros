@@ -7,13 +7,13 @@ arm_controller:
   action_ns: follow_joint_trajectory
   default: true
   joints:
-    - joint1
-    - joint2
-    - joint3
-    - joint4
+    - manipulator/joint1
+    - manipulator/joint2
+    - manipulator/joint3
+    - manipulator/joint4
 gripper_controller:
   type: GripperCommand
   action_ns: gripper_cmd
   default: true
   joints:
-    - gripper_left_joint
+    - manipulator/gripper_left_joint

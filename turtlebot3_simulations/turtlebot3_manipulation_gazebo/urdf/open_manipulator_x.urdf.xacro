@@ -37,7 +37,7 @@ https://github.com/ROBOTIS-GIT/open_manipulator/blob/kinetic-devel/open_manipula
       </inertial>
     </link>
 
-    <joint name="joint1" type="revolute">
+    <joint name="${prefix}joint1" type="revolute">
       <parent link="${prefix}link1"/>
       <child link="${prefix}link2"/>
       <origin xyz="0.012 0.0 0.017" rpy="0 0 0"/>
@@ -71,7 +71,7 @@ https://github.com/ROBOTIS-GIT/open_manipulator/blob/kinetic-devel/open_manipula
       </inertial>
     </link>
 
-    <joint name="joint2" type="revolute">
+    <joint name="${prefix}joint2" type="revolute">
       <parent link="${prefix}link2"/>
       <child link="${prefix}link3"/>
       <origin xyz="0.0 0.0 0.0595" rpy="0 0 0"/>
@@ -105,7 +105,7 @@ https://github.com/ROBOTIS-GIT/open_manipulator/blob/kinetic-devel/open_manipula
       </inertial>
     </link>
 
-    <joint name="joint3" type="revolute">
+    <joint name="${prefix}joint3" type="revolute">
       <parent link="${prefix}link3"/>
       <child link="${prefix}link4"/>
       <origin xyz="0.024 0 0.128" rpy="0 0 0"/>
@@ -139,7 +139,7 @@ https://github.com/ROBOTIS-GIT/open_manipulator/blob/kinetic-devel/open_manipula
       </inertial>
     </link>
 
-    <joint name="joint4" type="revolute">
+    <joint name="${prefix}joint4" type="revolute">
       <parent link="${prefix}link4"/>
       <child link="${prefix}link5"/>
       <origin xyz="0.124 0.0 0.0" rpy="0 0 0"/>
@@ -173,7 +173,7 @@ https://github.com/ROBOTIS-GIT/open_manipulator/blob/kinetic-devel/open_manipula
       </inertial>
     </link>
 
-    <joint name="gripper_left_joint" type="prismatic">
+    <joint name="${prefix}gripper_left_joint" type="prismatic">
       <parent link="${prefix}link5"/>
       <child link="${prefix}gripper_left_link"/>
       <origin xyz="0.0817 0.021 0.0" rpy="0 0 0"/>
@@ -207,13 +207,7 @@ https://github.com/ROBOTIS-GIT/open_manipulator/blob/kinetic-devel/open_manipula
       </inertial>
     </link>
 
-    <joint name="gripper_right_joint_mimic" type="fixed">
-      <parent link="${prefix}link5" />
-      <child link="dummy_mimic_fix" />
-    </joint>
-    <link name="dummy_mimic_fix"/>
-
-    <joint name="gripper_right_joint" type="prismatic">
+    <joint name="${prefix}gripper_right_joint" type="prismatic">
       <parent link="${prefix}link5"/>
       <child link="${prefix}gripper_right_link"/>
       <origin xyz="0.0817 -0.021 0" rpy="0 0 0"/>
@@ -248,7 +242,7 @@ https://github.com/ROBOTIS-GIT/open_manipulator/blob/kinetic-devel/open_manipula
       </inertial>
     </link>
 
-    <joint name="end_effector_joint" type="fixed">
+    <joint name="${prefix}end_effector_joint" type="fixed">
       <parent link="${prefix}link5"/>
       <child link="${prefix}end_effector_link"/>
       <origin xyz="0.126 0.0 0.0" rpy="0 0 0"/>

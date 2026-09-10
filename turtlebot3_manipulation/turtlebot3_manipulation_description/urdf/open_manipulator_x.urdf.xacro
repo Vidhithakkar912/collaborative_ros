@@ -2,7 +2,6 @@
 <!-- OpenManipulator-X -->
 <!--
 Copied and modified from open_manipulator-x example -
-
 https://github.com/ROBOTIS-GIT/open_manipulator/blob/kinetic-devel/open_manipulator_description/urdf/open_manipulator.urdf.xacro
 -->
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
@@ -207,12 +206,6 @@ https://github.com/ROBOTIS-GIT/open_manipulator/blob/kinetic-devel/open_manipula
                  izz="1.0e-06" />
       </inertial>
     </link>
-
-    <joint name="${prefix}gripper_right_joint_mimic" type="fixed">
-      <parent link="${prefix}link5" />
-      <child link="dummy_mimic_fix" />
-    </joint>
-    <link name="dummy_mimic_fix"/>
 
     <joint name="${prefix}gripper_right_joint" type="prismatic">
       <parent link="${prefix}link5"/>

@@ -74,8 +74,8 @@ https://github.com/ROBOTIS-GIT/turtlebot3/blob/kinetic-devel/turtlebot3_descript
         <remapping>odom:=odom</remapping>
       </ros>
 
-      <left_joint>wheel_left_joint</left_joint>
-      <right_joint>wheel_right_joint</right_joint>
+      <left_joint>manipulator/wheel_left_joint</left_joint>
+      <right_joint>manipulator/manipulator/wheel_right_joint</right_joint>
       <wheel_separation>0.287</wheel_separation>
       <wheel_diameter>0.066</wheel_diameter>
       <max_wheel_torque>20</max_wheel_torque>
@@ -134,8 +134,8 @@ https://github.com/ROBOTIS-GIT/turtlebot3/blob/kinetic-devel/turtlebot3_descript
       <camera name="intel_realsense_r200">
           <horizontal_fov>1.02974</horizontal_fov>
           <image>
-              <width>1920</width>
-              <height>1080</height>
+              <width>640</width>
+              <height>480</height>
               <format>R8G8B8</format>
           </image>
           <clip>
@@ -191,7 +191,9 @@ https://github.com/ROBOTIS-GIT/turtlebot3/blob/kinetic-devel/turtlebot3_descript
       filename="libgazebo_ros_camera.so">
 
       <ros>
-        <!-- <namespace>/manipulator</namespace> -->
+        <namespace>manipulator</namespace>
+        <remapping>image_raw:=camera/depth/rgb_raw</remapping>
+        <remapping>camera_info:=camera/depth/rgb_info</remapping>
         <remapping>camera/depth/image_raw:=camera/depth/image_raw</remapping>
         <remapping>camera/depth/camera_info:=camera/depth/camera_info</remapping>
         <remapping>camera/points:=camera/depth/points</remapping>

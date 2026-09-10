@@ -49,7 +49,8 @@ setup(
             'planner=multi_robots.robot_planner_multi_object:main',
             'task_manager=multi_robots.central_manager:main',
             'manipulator=multi_robots.manipulator_brain:main',
-            'transporter=multi_robots.transporter_brain:main'
+            'transporter=multi_robots.transporter_brain:main',
+            'filter=multi_robots.filter:main',
             
             
         ],

@@ -113,7 +113,8 @@ def generate_launch_description():
             parameters=[
                 {
                     'robot_description': transporter_description,
-                    'frame_prefix': 'transporter/',
+                    #'frame_prefix': 'transporter/',
+                    'prefix': 'transporter/',
                     'use_sim_time': True
                 }
             ],
@@ -135,7 +136,7 @@ def generate_launch_description():
         ' ',
         manipulator_xacro,
         ' ',
-        'prefix:=',
+        'prefix:=manipulator/',
         ' ',
         'use_sim:=true',
         ' ',
@@ -155,7 +156,8 @@ def generate_launch_description():
             {
                 'robot_description': manipulator_description,
                 'use_sim_time': True,
-                'frame_prefix': 'manipulator/'
+
+                # 'frame_prefix': 'manipulator/'
             }
         ],
 

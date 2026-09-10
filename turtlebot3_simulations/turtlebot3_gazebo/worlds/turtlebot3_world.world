@@ -125,7 +125,7 @@
       <include>
         <uri>model://cricket_ball</uri>
         <name>cricket_ball</name>
-        <pose>2.49 0.52 0.006131 0 0 0</pose>
+        <pose>2.291700 0.52000 0.000000 0 0 0</pose>
       </include>
       
        <include>

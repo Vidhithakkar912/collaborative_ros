@@ -98,7 +98,7 @@ https://github.com/ros-controls/ros2_control_demos/blob/foxy/ros2_control_demo_d
         </state_interface>
       </sensor>
 
-      <joint name="joint1">
+      <joint name="${prefix}joint1">
         <command_interface name="position">
           <param name="min">${-pi*0.9}</param>
           <param name="max">${pi*0.9}</param>
@@ -110,7 +110,7 @@ https://github.com/ros-controls/ros2_control_demos/blob/foxy/ros2_control_demo_d
           <param name="initial_value">0.0</param>
         </state_interface>
       </joint>
-      <joint name="joint2">
+      <joint name="${prefix}joint2">
         <command_interface name="position">
           <param name="min">${-pi*0.57}</param>
           <param name="max">${pi*0.5}</param>
@@ -122,7 +122,7 @@ https://github.com/ros-controls/ros2_control_demos/blob/foxy/ros2_control_demo_d
           <param name="initial_value">0.0</param>
         </state_interface>
       </joint>
-      <joint name="joint3">
+      <joint name="${prefix}joint3">
         <command_interface name="position">
           <param name="min">${-pi*0.3}</param>
           <param name="max">${pi*0.44}</param>
@@ -134,7 +134,7 @@ https://github.com/ros-controls/ros2_control_demos/blob/foxy/ros2_control_demo_d
           <param name="initial_value">0.0</param>
         </state_interface>
       </joint>
-      <joint name="joint4">
+      <joint name="${prefix}joint4">
         <command_interface name="position">
           <param name="min">${-pi*0.57}</param>
           <param name="max">${pi*0.65}</param>
@@ -146,7 +146,7 @@ https://github.com/ros-controls/ros2_control_demos/blob/foxy/ros2_control_demo_d
           <param name="initial_value">0.0</param>
         </state_interface>
       </joint>
-      <joint name="gripper_left_joint">
+      <joint name="${prefix}gripper_left_joint">
         <command_interface name="position">
           <param name="min">-0.010</param>
           <param name="max">0.019</param>
@@ -158,8 +158,8 @@ https://github.com/ros-controls/ros2_control_demos/blob/foxy/ros2_control_demo_d
           <param name="initial_value">0.0</param>
         </state_interface>
       </joint>
-      <joint name="gripper_right_joint">
-        <param name="mimic">gripper_left_joint</param>
+      <joint name="${prefix}gripper_right_joint">
+        <param name="mimic">${prefix}gripper_left_joint</param>
         <param name="multiplier">1</param>
         <command_interface name="position">
           <param name="min">-0.010</param>

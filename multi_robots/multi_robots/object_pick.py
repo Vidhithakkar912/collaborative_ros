@@ -125,8 +125,8 @@ class PickFromDetection(Node):
         self.moveit2 = MoveIt2(
             node=self,
             joint_names=[
-                'joint1', 'joint2',
-                'joint3', 'joint4',
+                'manipulator/joint1', 'manipulator/joint2',
+                'manipulator/joint3', 'manipulator/joint4',
             ],
             base_link_name=ARM_BASE_FRAME,
             end_effector_name=END_EFFECTOR_LINK,
@@ -135,7 +135,7 @@ class PickFromDetection(Node):
         )
         self.gripper = GripperCommand(
             node=self,
-            gripper_joint_names=['gripper_left_joint'],
+            gripper_joint_names=['manipulator/gripper_left_joint'],
             open_gripper_joint_positions=[0.019],   
             closed_gripper_joint_positions=[-0.010],  
             max_effort=0.0,
@@ -165,12 +165,13 @@ class PickFromDetection(Node):
                     msg,
                     desired_encoding='bgr8'
                 )
-
+                self.get_logger().info(f'cv_rgb shape: {cv_rgb.shape}')
                 bboxes = detect_rectangles_hsv(cv_rgb)
 
                 if not bboxes:
                     self.object_detected = False
                     return
+                self.get_logger().info(f'bboxes found: {bboxes}') 
                 if self.object_detected:
                     return
                 self.object_detected = True

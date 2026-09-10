@@ -45,8 +45,7 @@ def generate_launch_description():
             'turtlebot3_manipulation.urdf.xacro',
         ),
         mappings={
-        'frame_prefix': 'manipulator/',
-        'joint_prefix': '',
+        'prefix': 'manipulator/',
         'use_sim': 'true',
         'use_fake_hardware': 'false',
         'fake_sensor_commands': 'false',
@@ -102,6 +101,9 @@ def generate_launch_description():
     with open(ompl_planning_yaml_path, 'r') as file:
         ompl_planning_yaml = yaml.safe_load(file)
     ompl_planning_pipeline_config['move_group'].update(ompl_planning_yaml)
+    planning_pipeline_names_param = {
+        'planning_pipeline_names': ['move_group'],
+    }    
 
     # Trajectory Execution
     trajectory_execution = {
@@ -147,16 +149,21 @@ def generate_launch_description():
     move_group_node = Node(
         package='moveit_ros_move_group',
         executable='move_group',
+        namespace='manipulator',
         output='screen',
         parameters=[
             robot_description,
             robot_description_semantic,
             kinematics_yaml,
             ompl_planning_pipeline_config,
+            planning_pipeline_names_param,
             trajectory_execution,
             moveit_controllers,
             planning_scene_monitor_parameters,
             {'use_sim_time': use_sim},
+        ],
+        remappings=[
+            ('joint_states', '/manipulator/joint_states'),
         ],
         
     )
