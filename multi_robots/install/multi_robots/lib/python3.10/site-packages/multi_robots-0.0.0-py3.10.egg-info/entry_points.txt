@@ -1,0 +1,9 @@
+[console_scripts]
+chat_gui = multi_robots.chat_gui:main
+goal_pose = multi_robots.goal_pose:main
+llm_decision = multi_robots.llm_decision_making:main
+llm_nav = multi_robots.llm_nav:main
+llm_obj = multi_robots.llm_search_object:main
+object_detection = multi_robots.object_detection:main
+object_tracking = multi_robots.object_tracking:main
+planner = multi_robots.multi_Robot_planner:main

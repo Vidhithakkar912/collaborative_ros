@@ -1,0 +1,39 @@
+{
+    "python.autoComplete.extraPaths": [
+        "/home/einfochips/.local/lib/python3.10/site-packages",
+        "/home/einfochips/tb3_ws/install/turtlebot3_teleop/lib/python3.10/site-packages",
+        "/home/einfochips/tb3_ws/install/turtlebot3_example/lib/python3.10/site-packages",
+        "/home/einfochips/tb3_ws/install/turtlebot3_msgs/local/lib/python3.10/dist-packages",
+        "/home/einfochips/tb3_ws/install/dynamixel_sdk_custom_interfaces/local/lib/python3.10/dist-packages",
+        "/home/einfochips/tb3_ws/install/dynamixel_sdk/local/lib/python3.10/dist-packages",
+        "/home/einfochips/ros2_ws/install/zenoh_rviz_pkg/lib/python3.10/site-packages",
+        "/home/einfochips/ros2_ws/install/tb3_multi_robot/lib/python3.10/site-packages",
+        "/home/einfochips/ros2_ws/install/tb3_multi/lib/python3.10/site-packages",
+        "/home/einfochips/ros2_ws/install/smartrover_gazebo/lib/python3.10/site-packages",
+        "/home/einfochips/ros2_ws/install/navigation_demo/lib/python3.10/site-packages",
+        "/home/einfochips/ros2_ws/install/my_py_pkg/lib/python3.10/site-packages",
+        "/home/einfochips/ros2_ws/install/multi_robots/lib/python3.10/site-packages",
+        "/home/einfochips/ros2_ws/install/comuros/lib/python3.10/site-packages",
+        "/opt/ros/humble/lib/python3.10/site-packages",
+        "/opt/ros/humble/local/lib/python3.10/dist-packages"
+    ],
+    "python.analysis.extraPaths": [
+        "/home/einfochips/.local/lib/python3.10/site-packages",
+        "/home/einfochips/tb3_ws/install/turtlebot3_teleop/lib/python3.10/site-packages",
+        "/home/einfochips/tb3_ws/install/turtlebot3_example/lib/python3.10/site-packages",
+        "/home/einfochips/tb3_ws/install/turtlebot3_msgs/local/lib/python3.10/dist-packages",
+        "/home/einfochips/tb3_ws/install/dynamixel_sdk_custom_interfaces/local/lib/python3.10/dist-packages",
+        "/home/einfochips/tb3_ws/install/dynamixel_sdk/local/lib/python3.10/dist-packages",
+        "/home/einfochips/ros2_ws/install/zenoh_rviz_pkg/lib/python3.10/site-packages",
+        "/home/einfochips/ros2_ws/install/tb3_multi_robot/lib/python3.10/site-packages",
+        "/home/einfochips/ros2_ws/install/tb3_multi/lib/python3.10/site-packages",
+        "/home/einfochips/ros2_ws/install/smartrover_gazebo/lib/python3.10/site-packages",
+        "/home/einfochips/ros2_ws/install/navigation_demo/lib/python3.10/site-packages",
+        "/home/einfochips/ros2_ws/install/my_py_pkg/lib/python3.10/site-packages",
+        "/home/einfochips/ros2_ws/install/multi_robots/lib/python3.10/site-packages",
+        "/home/einfochips/ros2_ws/install/comuros/lib/python3.10/site-packages",
+        "/opt/ros/humble/lib/python3.10/site-packages",
+        "/opt/ros/humble/local/lib/python3.10/dist-packages"
+    ],
+    "ROS2.distro": "humble"
+}

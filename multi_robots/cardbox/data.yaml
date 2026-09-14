@@ -1,0 +1,13 @@
+train: /home/einfochips/Downloads/cardbox/train/images
+val: /home/einfochips/Downloads/cardbox/valid/images
+test: /home/einfochips/Downloads/cardbox/test/images
+
+nc: 1
+names: ['box']
+
+roboflow:
+  workspace: are-bla-gpxot
+  project: cardboard-box-u35qd
+  version: 1
+  license: Public Domain
+  url: https://universe.roboflow.com/are-bla-gpxot/cardboard-box-u35qd/dataset/1

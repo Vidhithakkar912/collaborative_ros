@@ -1,0 +1,137 @@
+<?xml version="1.0"?>
+<sdf version="1.6">
+  <world name="default">
+
+    <include>
+      <uri>model://ground_plane</uri>
+    </include>
+
+    <include>
+      <uri>model://sun</uri>
+    </include>
+
+    <scene>
+      <shadows>false</shadows>
+    </scene>
+
+    <gui fullscreen='0'>
+      <camera name='user_camera'>
+        <pose frame=''>0.319654 -0.235002 9.29441 0 1.5138 0.009599</pose>
+        <view_controller>orbit</view_controller>
+        <projection_type>perspective</projection_type>
+      </camera>
+    </gui>
+
+    <physics type="ode">
+      <real_time_update_rate>1000.0</real_time_update_rate>
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1</real_time_factor>
+      <ode>
+        <solver>
+          <type>quick</type>
+          <iters>150</iters>
+          <precon_iters>0</precon_iters>
+          <sor>1.400000</sor>
+          <use_dynamic_moi_rescaling>1</use_dynamic_moi_rescaling>
+        </solver>
+        <constraints>
+          <cfm>0.00001</cfm>
+          <erp>0.2</erp>
+          <contact_max_correcting_vel>2000.000000</contact_max_correcting_vel>
+          <contact_surface_layer>0.01000</contact_surface_layer>
+        </constraints>
+      </ode>
+    </physics>
+
+    <model name="turtlebot3_world">
+      <static>1</static>
+      <include>
+        <uri>model://turtlebot3_world</uri>
+      </include>
+    </model>
+    <model name="cardboard_box">
+        <pose>0.80 -0.80 0.149 0 0 0</pose>
+        <link name="link">
+          <inertial>
+            <mass>2</mass>
+            <inertia>
+              <ixx>0.041666667</ixx>
+              <ixy>0</ixy>
+              <ixz>0</ixz>
+              <iyy>0.056666667</iyy>
+              <iyz>0</iyz>
+              <izz>0.068333333</izz>
+            </inertia>
+          </inertial>
+          <collision name="collision">
+            <geometry>
+              <box>
+                <size>0.5 0.4 0.3</size>
+              </box>
+            </geometry>
+            <surface>
+              <friction>
+                <ode>
+                  <mu>1.0</mu>
+                  <mu2>1.0</mu2>
+                </ode>
+              </friction>
+              <contact>
+                <ode>
+                  <kp>10000000.0</kp>
+                  <kd>1.0</kd>
+                  <min_depth>0.001</min_depth>
+                  <max_vel>0.1</max_vel>
+                </ode>
+              </contact>
+            </surface>
+          </collision>
+          <visual name="visual">
+            <pose>0.20 0.25 -0.15 0 0 0</pose>
+            <geometry>
+              <mesh>
+                <uri>model://cardboard_box/meshes/cardboard_box.dae</uri>
+                <scale>1.25931896 1.007455168 0.755591376</scale>
+              </mesh>
+            </geometry>
+          </visual>
+        </link>
+      </model>
+     
+    <model name="VisitorChair">
+   <static>true</static>
+    <link name="body">
+      <pose>-0.430634 0.545444 0.0 0.0 0.0 1.592900</pose>
+
+      <visual name="visual">
+        <geometry>
+          <mesh>
+            <uri>model://VisitorChair/meshes/VisitorChair.obj</uri>
+          </mesh>
+        </geometry>
+      </visual>
+
+      <collision name="collision">
+        <geometry>
+          <mesh>
+            <uri>model://VisitorChair/meshes/VisitorChair_Col.obj</uri>
+          </mesh>
+        </geometry>
+      </collision>
+
+    </link>
+  </model>
+  
+      <include>
+        <uri>model://cricket_ball</uri>
+        <name>cricket_ball</name>
+        <pose>2.291700 0.52000 0.000000 0 0 0</pose>
+      </include>
+      
+       <include>
+        <uri>model://cricket_ball</uri>
+        <name>cricket_ball1</name>
+        <pose>-0.9954 -0.5377 -0.001014 0 0 0</pose>
+      </include>      
+      </world>
+</sdf>

@@ -1,0 +1,7 @@
+# Default initial positions for turtlebot3_manipulation's ros2_control fake system
+
+initial_positions:
+  manipulator/joint1: 0
+  manipulator/joint2: 0
+  manipulator/joint3: 0
+  manipulator/joint4: 0

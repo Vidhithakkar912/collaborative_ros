@@ -1,0 +1,21 @@
+{
+    "python.autoComplete.extraPaths": [
+        "/home/einfochips/.local/lib/python3.10/site-packages",
+        "/home/einfochips/tb3_ws/install/turtlebot3_teleop/lib/python3.10/site-packages",
+        "/home/einfochips/tb3_ws/install/turtlebot3_example/lib/python3.10/site-packages",
+        "/home/einfochips/tb3_ws/install/turtlebot3_msgs/local/lib/python3.10/dist-packages",
+        "/home/einfochips/ros2_ws/install/multi_robots/lib/python3.10/site-packages",
+        "/opt/ros/humble/lib/python3.10/site-packages",
+        "/opt/ros/humble/local/lib/python3.10/dist-packages"
+    ],
+    "python.analysis.extraPaths": [
+        "/home/einfochips/.local/lib/python3.10/site-packages",
+        "/home/einfochips/tb3_ws/install/turtlebot3_teleop/lib/python3.10/site-packages",
+        "/home/einfochips/tb3_ws/install/turtlebot3_example/lib/python3.10/site-packages",
+        "/home/einfochips/tb3_ws/install/turtlebot3_msgs/local/lib/python3.10/dist-packages",
+        "/home/einfochips/ros2_ws/install/multi_robots/lib/python3.10/site-packages",
+        "/opt/ros/humble/lib/python3.10/site-packages",
+        "/opt/ros/humble/local/lib/python3.10/dist-packages"
+    ],
+    "ROS2.distro": "humble"
+}
