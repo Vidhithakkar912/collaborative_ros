@@ -1,0 +1,1669 @@
+#!/usr/bin/env python3
+
+
+import math
+import threading
+import time
+from enum import Enum, auto
+from time import sleep
+from moveit_msgs.msg import PositionConstraint, OrientationConstraint
+from shape_msgs.msg import SolidPrimitive
+import cv2
+import numpy as np
+import rclpy
+from rclpy.node import Node
+from rclpy.executors import MultiThreadedExecutor 
+from rclpy.callback_groups import MutuallyExclusiveCallbackGroup ,ReentrantCallbackGroup
+from rclpy.duration import Duration
+
+import tf2_ros
+from tf2_ros import TransformException
+from tf2_geometry_msgs import tf2_geometry_msgs
+
+from geometry_msgs.msg import Twist, PointStamped, PoseStamped, Pose ,PoseArray
+from sensor_msgs.msg import CameraInfo, Image
+from cv_bridge import CvBridge, CvBridgeError
+from transforms3d.euler import euler2quat
+from ultralytics import YOLO
+import image_geometry
+
+from nav2_simple_commander.robot_navigator import BasicNavigator, TaskResult
+from object_interfaces.msg import DetectedObject
+from object_interfaces.msg import DetectedObjectArray
+from rclpy.action import ActionClient
+from sensor_msgs.msg import JointState
+from trajectory_msgs.msg import JointTrajectory
+from moveit_msgs.action import MoveGroup, ExecuteTrajectory
+from moveit_msgs.srv import GetPositionIK, GetMotionPlan
+from moveit_msgs.msg import Constraints, JointConstraint,RobotState,RobotTrajectory,MotionPlanRequest
+from rclpy.action import ActionClient
+from control_msgs.action import GripperCommand
+
+# from pymoveit2 import MoveIt2
+# from pymoveit2.gripper_command import GripperCommand
+
+BALL_RADIUS_M = 0.030
+MIN_BBOX_AREA = 3500
+TARGET_AREA = 15000
+TRACK_LINEAR_SPEED = 0.10
+TRACK_ANGULAR_GAIN = 0.003
+TRACK_MAX_ANGULAR = 0.5
+SEARCH_SPIN_SPEED = 0.2
+TRACK_LOOP_PERIOD_SEC = 0.1
+CENTER_TOLERANCE_PX = 25
+EE_LINK = 'end_effector_link'
+
+PLAN_TIMEOUT_SEC = 8.0
+
+PLANNING_GROUP = 'arm'
+
+IK_ORIENTATION_TOLERANCE_CARTESIAN = 0.4
+
+GRASP_Z_OFFSET_PREGRASP = 0.12
+GRASP_Z_OFFSET_LIFT = 0.20
+PLACE_Z_OFFSET_PRE = 0.15
+PLACE_DROP_HEIGHT = 0.08
+DEPTH_ROI_MIN_VALID_PIXELS = 5
+GRIPPER_OPEN_POSITION = 0.019   # match URDF upper limit exact
+GRIPPER_CLOSE_POSITION = 0.010    # within [-0.010, 0.019] range, ok as-is
+GRIPPER_MAX_EFFORT = 5.0        # match URDF effort limit, avoid confusion
+
+DETECT_BALL_CONFIRM_TIMEOUT = 3.0    
+DETECT_BALL_CONFIRM_PERIOD = 0.1
+
+SEARCH_SPIN_TIMEOUT = 5.0            
+SEARCH_SPIN_PERIOD = 0.1
+
+APPROACH_STANDOFF_DIST = 0.5          
+
+ARM_MIN_REACH_RADIUS = 0.15      # tune from your arm reach envelope
+ARM_MAX_REACH_RADIUS = 0.26      # tune
+ARM_IDEAL_STANDOFF_X = 0.20      # center of good band, tune
+ARM_STANDOFF_TOLERANCE = 0.02
+REPOSITION_LINEAR_GAIN = 0.5
+REPOSITION_MAX_LINEAR = 0.06
+REPOSITION_MAX_ATTEMPTS = 6
+REPOSITION_SETTLE_SEC = 0.4
+class MissionState(Enum):
+    DETECT_BALL = auto()
+    NAVIGATE_TO_BALL = auto()
+    PICK = auto()
+    DETECT_BOX = auto()
+    NAVIGATE_TO_BOX = auto()
+    PLACE = auto()
+
+
+def detect_rectangles_box_hsv(image: np.ndarray) -> list:
+    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+    lower_brown = np.array([10, 80, 40])
+    upper_brown = np.array([20, 200, 180])
+    mask = cv2.inRange(hsv, lower_brown, upper_brown)
+
+    kernel = np.ones((5, 5), np.uint8)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    if not contours:
+        return []
+
+    cnt = max(contours, key=cv2.contourArea)
+    
+
+    x, y, w, h = cv2.boundingRect(cnt)
+    return [[x, x + w, y, y + h]]
+
+
+def detect_rectangles_ball_hsv(image: np.ndarray) -> list:
+    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+    lower_yellow = np.array([25, 100, 100])
+    upper_yellow = np.array([35, 255, 255])
+   
+
+    mask = cv2.inRange(hsv, lower_yellow, upper_yellow) 
+
+    kernel = np.ones((5, 5), np.uint8)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    if not contours:
+        return []
+
+    cnt = max(contours, key=cv2.contourArea)
+    
+
+    x, y, w, h = cv2.boundingRect(cnt)
+    return [[x, x + w, y, y + h]]
+
+
+def detect_rectangles_yolo(model, image: np.ndarray):
+    results = model(image, conf=0.3, verbose=False)
+    detections = []
+    for r in results:
+        for box in r.boxes:
+            conf = float(box.conf[0])
+            cls_id = int(box.cls[0])
+            class_name = model.names[cls_id]
+            x1, y1, x2, y2 = map(int, box.xyxy[0])
+            detections.append({
+                "class": class_name,
+                "confidence": conf,
+                "bbox": [x1, x2, y1, y2],
+            })
+    return detections
+
+
+class PickAndPlaceNode(Node):
+
+    def __init__(self):
+        super().__init__("pick_and_place_node")
+
+        ns = self.get_namespace().strip("/")
+        if ns:
+            prefix=f"/{ns}"
+        else:
+            prefix=""
+        
+        caminfo_topic = "/camera/camera/color/camera_info"
+        rgb_topic = "/camera/camera/color/image_raw"
+        depth_topic = "/camera/camera/depth/image_rect_raw"
+        pose_topic    = "/box_poses"
+        self._bridge = CvBridge()
+        self.declare_parameter("to_meter", 1.0)
+        self.declare_parameter("global_frame", "map")
+        self.declare_parameter("robot_base_frame", "base_link")
+        self.declare_parameter("min_bbox_area", 5000)
+        self.declare_parameter("dedup_dist_thresh", 0.4)
+        self.declare_parameter("yolo_model_path",
+                                "/home/startrace1/best.pt")
+        self._bboxes=[]
+        self._det_time = 0.0
+        self.to_meter_ = self.get_parameter("to_meter").value
+        self.global_frame_ = self.get_parameter("global_frame").value
+        self.robot_base_frame_ = self.get_parameter("robot_base_frame").value
+        self.min_bbox_area_ = self.get_parameter("min_bbox_area").value
+        self.dedup_dist_thresh_ = self.get_parameter("dedup_dist_thresh").value
+        cb_group = ReentrantCallbackGroup()
+        self.last_ball_seen_time = None
+        self.tf_buffer = tf2_ros.Buffer(cache_time=Duration(seconds=10))
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
+        self.get_logger().info(f"Waiting for CameraInfo on '{caminfo_topic}' ...")
+        cam_info_msg = self.wait_for_camera_info(caminfo_topic)
+        self._cam_model = image_geometry.PinholeCameraModel()
+        self._cam_model.fromCameraInfo(cam_info_msg)
+        
+        self.depth_optical_frame_ = "camera_depth_optical_frame" 
+        self.camera_info_received = True
+        self.get_logger().info(
+    f"Camera optical frame: {self.depth_optical_frame_}"
+)
+        tf_ready = False
+        for _ in range(20):
+
+            if self.tf_buffer.can_transform(
+                    self.global_frame_,
+                    self.depth_optical_frame_,
+                    rclpy.time.Time(),
+                    timeout=Duration(seconds=0.5)):
+
+                tf_ready = True
+                break
+
+            self.get_logger().warn("Waiting for TF tree...")
+            rclpy.spin_once(self, timeout_sec=0.2)
+
+        if tf_ready:
+
+            self.get_logger().info(
+                f"TF chain OK ✓ '{self.depth_optical_frame_}'→'{self.global_frame_}'")
+
+        else:
+
+            self.get_logger().error(
+                f"TF chain STILL MISSING: "
+                f"'{self.depth_optical_frame_}'→'{self.global_frame_}'"
+            )
+        tf_ready = False
+        for _ in range(20):
+
+            if self.tf_buffer.can_transform(
+                    self.robot_base_frame_,
+                    self.depth_optical_frame_,
+                    rclpy.time.Time(),
+                    timeout=Duration(seconds=0.5)):
+
+                tf_ready = True
+                break
+
+            self.get_logger().warn("Waiting for TF tree...")
+            rclpy.spin_once(self, timeout_sec=0.2)
+
+        if tf_ready:
+
+            self.get_logger().info(
+                f"TF chain OK ✓ '{self.depth_optical_frame_}'→'{self.robot_base_frame_}'")
+
+        else:
+
+            self.get_logger().error(
+                f"TF chain STILL MISSING: "
+                f"'{self.depth_optical_frame_}'→'{self.robot_base_frame_}'"
+            )
+        
+        self.joint_state = None
+
+        self.joint_state_sub = self.create_subscription(
+            JointState,
+            "/joint_states",
+            self._joint_state_callback,
+            10,
+            callback_group=cb_group,
+        )
+
+        self.compute_ik_client = self.create_client(
+            GetPositionIK,
+            "/compute_ik",
+            callback_group=cb_group,
+        )
+
+        self.plan_client = self.create_client(
+            GetMotionPlan,
+            "/plan_kinematic_path",
+            callback_group=cb_group,
+        )
+
+        self.execute_client = ActionClient(
+            self,
+            ExecuteTrajectory,
+            "/execute_trajectory",
+            callback_group=cb_group,
+        )
+
+        self.move_group_client = ActionClient(
+            self,
+            MoveGroup,
+            "/move_action",
+            callback_group=cb_group,
+        )
+
+        self.get_logger().info("Waiting for MoveIt interfaces...")
+
+        self.compute_ik_client.wait_for_service(timeout_sec=5.0)
+        self.plan_client.wait_for_service(timeout_sec=5.0)
+        self.execute_client.wait_for_server(timeout_sec=5.0)
+        self.move_group_client.wait_for_server(timeout_sec=5.0)
+
+        self.get_logger().info("MoveIt interfaces ready.")
+        self.gripper = ActionClient(
+    self,
+    GripperCommand,
+    "/gripper_controller/gripper_cmd",
+)
+        self.get_logger().info("Waiting for gripper action server...")
+
+        if not self.gripper.wait_for_server(timeout_sec=5.0):
+            self.get_logger().error(
+                "Gripper action server not available: "
+                "/gripper_controller/gripper_cmd"
+            )
+        else:
+            self.get_logger().info("Gripper action server ready.")
+        self.bridge = CvBridge()
+        self._detections_lock = threading.Lock()
+        self._detections = []
+        self.latest_rgb = None          
+        self.latest_rgb_msg = None      
+        self.rgb_lock = threading.Lock()
+        self.rgb_h = None
+        self.rgb_w = None
+        self.last_ball_bbox = None
+        self.last_box_bbox = None
+        self._last_twist = None
+        self._latest_depth_cv=None
+        self._latest_depth_msg=None
+        self._mtx    = threading.Lock()
+       
+       
+
+        
+        model_path = self.get_parameter("yolo_model_path").value
+        self.model = YOLO(model_path)
+        self.model.to("cpu")   
+        self.get_logger().info(f"YOLO path={model_path} names={self.model.names}")
+
+        
+        self._cbg_rgb = MutuallyExclusiveCallbackGroup()
+        self._cbg_depth = MutuallyExclusiveCallbackGroup()
+        self._cbg_planner = MutuallyExclusiveCallbackGroup()
+
+        self._rgb_sub = self.create_subscription(
+            Image, rgb_topic, self._rgb_callback, 10, callback_group=self._cbg_rgb)
+        self._depth_sub = self.create_subscription(
+            Image, depth_topic, self._depth_img_callback, 10, callback_group=self._cbg_depth)
+        self.golf_bal_pose_sub = self.create_subscription(
+            DetectedObjectArray, "planner_object_pose", self.golf_ball_pose_callback, 1,
+            callback_group=self._cbg_planner)
+
+        self._debug_img_pub = self.create_publisher(Image, "/pick_place/debug_image", 10)
+        self.detected_object_pub = self.create_publisher(DetectedObjectArray, "/detected_objects", 10)
+        self.cmd_vel_pub = self.create_publisher(Twist, "/diff_drive_controller/cmd_vel", 10)
+        self._pose_pub = self.create_publisher(PoseArray, pose_topic, 10)
+        
+        self.navigator = BasicNavigator()
+        self.map_frame = self.global_frame_
+        self.robot_base_frame = self.robot_base_frame_
+        self.currently_navigating = False
+        self.current_target = None
+        self.robot_busy = False
+        self.visited_objects = []
+        self.detected_objects = []
+        self.scanning = False
+        self.full_rotation_done = False
+
+                            
+     
+
+        self.state = MissionState.DETECT_BALL
+
+        self.get_logger().info("Pick-and-place node initialized.")
+    def _get_current_robot_state(self):
+        if self.joint_state is None:
+            self.get_logger().error("No /manipulator/joint_states received")
+            return None
+
+        robot_state = RobotState()
+        robot_state.joint_state = self.joint_state
+
+        return robot_state
+    def reposition_for_reach(self) -> bool:
+        """Creep base forward/back using actual arm-frame ball position
+        (not image area) until ball sits inside arm's kinematic reach band."""
+        for attempt in range(REPOSITION_MAX_ATTEMPTS):
+            if self.last_ball_bbox is None:
+                self.get_logger().warn("No ball bbox during reposition")
+                return False
+
+            pt_base = self.get_pose_in_base(self.last_ball_bbox, radius_offset=BALL_RADIUS_M)
+            if pt_base is None:
+                self.get_logger().warn("Could not localize ball during reposition")
+                return False
+
+            x = pt_base.point.x
+            y = pt_base.point.y
+            radius = math.hypot(x, y)
+
+            self.get_logger().info(
+                f"Reposition[{attempt}]: x={x:.3f} y={y:.3f} radius={radius:.3f} "
+                f"(band {ARM_MIN_REACH_RADIUS:.2f}-{ARM_MAX_REACH_RADIUS:.2f})"
+            )
+
+            if ARM_MIN_REACH_RADIUS <= radius <= ARM_MAX_REACH_RADIUS:
+                self.stop_base()
+                self.get_logger().info("Ball inside arm reach band")
+                return True
+
+            err = x - ARM_IDEAL_STANDOFF_X
+            twist = Twist()
+            twist.linear.x = max(-REPOSITION_MAX_LINEAR,
+                                min(REPOSITION_MAX_LINEAR, REPOSITION_LINEAR_GAIN * err))
+            self.cmd_vel_pub.publish(twist)
+            time.sleep(REPOSITION_SETTLE_SEC)
+            self.stop_base()
+            time.sleep(0.3)   # let camera/depth settle after stop
+
+        self.stop_base()
+        self.get_logger().warn("Reposition attempts exhausted, ball still out of reach band")
+        return False
+    def compute_ik(self, pose_stamped,timeout_sec:float=5.0):
+        if not self.compute_ik_client.wait_for_service(timeout_sec=2.0):
+            self.get_logger().error(
+                "IK service unavailable: /manipulator/compute_ik"
+            )
+            return None
+
+        current_state = self._get_current_robot_state()
+
+        if current_state is None:
+            return None
+
+        request = GetPositionIK.Request()
+
+        request.ik_request.group_name = PLANNING_GROUP
+        request.ik_request.robot_state = current_state
+        request.ik_request.pose_stamped = pose_stamped
+        request.ik_request.ik_link_name = EE_LINK
+
+        request.ik_request.timeout.sec = 1
+        request.ik_request.timeout.nanosec = 500_000_000
+
+        self.get_logger().info(
+            f"Requesting IK: group={PLANNING_GROUP}, "
+            f"link={EE_LINK}, "
+            f"frame={pose_stamped.header.frame_id}"
+        )
+        
+        future = self.compute_ik_client.call_async(request)
+        if not self._wait_for_future(future, timeout_sec=timeout_sec):
+            self.get_logger().error("timed out waiting for compute ik")
+            return False
+        
+
+        if not future.done():
+            self.get_logger().error("IK request timed out")
+            return None
+
+        try:
+            response = future.result()
+        except Exception as e:
+            self.get_logger().error(f"IK service call failed: {e}")
+            return None
+
+        if response is None:
+            self.get_logger().error("IK returned no response")
+            return None
+
+        if response.error_code.val != response.error_code.SUCCESS:
+            self.get_logger().error(
+                f"IK failed, error code={response.error_code.val}"
+            )
+            return None
+
+        self.get_logger().info("IK solution found")
+
+        return response.solution
+    def execute_trajectory(self, trajectory,timeout_sec:float=5.0) -> bool:
+
+        if trajectory is None:
+            self.get_logger().error("No trajectory to execute")
+            return False
+
+        goal_msg = ExecuteTrajectory.Goal()
+        goal_msg.trajectory = trajectory
+
+        self.get_logger().info(
+            "Sending trajectory to MoveIt ExecuteTrajectory action..."
+        )
+
+        send_future = self.execute_client.send_goal_async(goal_msg)
+
+        if not self._wait_for_future(send_future, timeout_sec=timeout_sec):
+            self.get_logger().error("timed out waiting for compute ik")
+            return False
+
+        if not send_future.done():
+            self.get_logger().error(
+                "Timed out waiting for trajectory goal response"
+            )
+            return False
+
+        goal_handle = send_future.result()
+
+        if goal_handle is None:
+            self.get_logger().error(
+                "MoveIt returned no goal handle"
+            )
+            return False
+
+        if not goal_handle.accepted:
+            self.get_logger().error(
+                "MoveIt rejected trajectory execution"
+            )
+            return False
+
+        self.get_logger().info(
+            "Trajectory execution goal accepted"
+        )
+
+        result_future = goal_handle.get_result_async()
+
+        if not self._wait_for_future(result_future, timeout_sec=timeout_sec):
+            self.get_logger().error("timed out waiting for compute ik")
+            return False
+        
+
+        if not result_future.done():
+            self.get_logger().error(
+                "Timed out waiting for trajectory execution result"
+            )
+            return False
+
+        result_wrapper = result_future.result()
+
+        if result_wrapper is None:
+            self.get_logger().error(
+                "No trajectory execution result received"
+            )
+            return False
+
+        result = result_wrapper.result
+
+        if result.error_code.val != result.error_code.SUCCESS:
+            self.get_logger().error(
+                f"MoveIt trajectory execution failed: "
+                f"error_code={result.error_code.val}"
+            )
+            return False
+
+        self.get_logger().info(
+            "MoveIt trajectory execution successful"
+        )
+
+        return True
+    def _log_ee_pose(self, label: str):
+        try:
+            t = self.tf_buffer.lookup_transform(
+                self.robot_base_frame_, EE_LINK, rclpy.time.Time(),
+                timeout=Duration(seconds=1.0))
+            p = t.transform.translation
+            self.get_logger().info(
+                f"[{label}] EE actual pose in base: x={p.x:.3f} y={p.y:.3f} z={p.z:.3f}")
+        except Exception as e:
+            self.get_logger().warn(f"[{label}] EE pose lookup fail: {e}")
+    def plan_to_pose(self, pose_stamped,timeout_sec:float=5.0):
+        ik_solution = self.compute_ik(pose_stamped)
+
+        if ik_solution is None:
+            self.get_logger().error("Cannot plan: IK failed")
+            return None
+
+        request = GetMotionPlan.Request()
+
+        motion_request = request.motion_plan_request
+
+        motion_request.group_name = PLANNING_GROUP
+
+        motion_request.start_state = self._get_current_robot_state()
+
+        if motion_request.start_state is None:
+            return None
+
+        # Goal constraints from IK solution
+        goal_constraints = Constraints()
+
+        joint_names = ik_solution.joint_state.name
+        joint_positions = ik_solution.joint_state.position
+
+        for name, position in zip(joint_names, joint_positions):
+
+            # Only constrain joints belonging to the arm.
+            if name not in (
+                "joint1",
+                "joint2",
+                "joint3",
+                "joint4",
+            ):
+                continue
+
+            jc = JointConstraint()
+
+            jc.joint_name = name
+            jc.position = position
+
+            jc.tolerance_above = 0.01
+            jc.tolerance_below = 0.01
+            jc.weight = 1.0
+
+            goal_constraints.joint_constraints.append(jc)
+
+        motion_request.goal_constraints.append(goal_constraints)
+
+        # Use the default planner configured by MoveIt.
+        motion_request.num_planning_attempts = 5
+        motion_request.allowed_planning_time = PLAN_TIMEOUT_SEC
+        motion_request.max_velocity_scaling_factor = 0.3
+        motion_request.max_acceleration_scaling_factor = 0.3
+
+        self.get_logger().info(
+            f"Planning with MoveIt group '{PLANNING_GROUP}'"
+        )
+
+        future = self.plan_client.call_async(request)
+
+        if not self._wait_for_future(future, timeout_sec=timeout_sec):
+            self.get_logger().error("timed out waiting for compute ik")
+            return False
+
+       
+
+        try:
+            response = future.result()
+        except Exception as e:
+            self.get_logger().error(
+                f"Motion planning service failed: {e}"
+            )
+            return None
+        if response is None:
+            self.get_logger().error("Motion planning returned no response")
+            return None
+        plan_response = response.motion_plan_response
+
+        if plan_response.error_code.val != plan_response.error_code.SUCCESS:
+            self.get_logger().error(
+                f"Motion planning failed, "
+                f"error code={plan_response.error_code.val}"
+            )
+            return None
+
+        trajectory = plan_response.trajectory
+
+        if len(trajectory.joint_trajectory.points) == 0:
+            self.get_logger().error(
+                "MoveIt returned an empty trajectory"
+            )
+            return None
+
+        self.get_logger().info(
+            f"Planning successful: "
+            f"{len(trajectory.joint_trajectory.points)} trajectory points"
+        )
+
+        return trajectory
+    def move_to_pose(
+            self,
+            pose_stamped: PoseStamped,
+            cartesian: bool = False
+        ) -> bool:
+
+        self.get_logger().info(
+            f"Planning to pose: "
+            f"x={pose_stamped.pose.position.x:.3f}, "
+            f"y={pose_stamped.pose.position.y:.3f}, "
+            f"z={pose_stamped.pose.position.z:.3f}"
+        )
+
+        trajectory = self.plan_to_pose(pose_stamped)
+
+        if trajectory is None:
+            self.get_logger().error(
+                "MoveIt failed to generate a trajectory"
+            )
+            return False
+
+        return self.execute_trajectory(trajectory)
+
+    def wait_for_camera_info(self, topic: str) -> CameraInfo:
+        event = threading.Event()
+        received = {}
+
+        def _cb(msg):
+            received["msg"] = msg
+            event.set()
+
+        sub = self.create_subscription(CameraInfo, topic, _cb, 1)
+        tmp_executor = rclpy.executors.SingleThreadedExecutor()
+        tmp_executor.add_node(self)
+
+        while rclpy.ok() and not event.is_set():
+            tmp_executor.spin_once(timeout_sec=0.1)
+
+        tmp_executor.remove_node(self)
+        tmp_executor.shutdown()
+        self.destroy_subscription(sub)
+
+        if "msg" not in received:
+            raise RuntimeError("CameraInfo never received")
+        self.get_logger().info("CameraInfo received successfully.")
+        return received["msg"]
+    def _joint_state_callback(self, msg: JointState):
+        self.joint_state = msg
+    # def command_gripper(self, position: float, max_effort: float = 50.0) -> bool:
+    #     """
+    #     Send a GripperCommand action goal.
+
+    #     position:
+    #         Controller-specific gripper position.
+    #         Usually 0.0 = closed and a positive value = open,
+    #         but verify this from your controller configuration.
+
+    #     max_effort:
+    #         Maximum effort requested from the gripper controller.
+    #     """
+
+    #     if not self.gripper.wait_for_server(timeout_sec=5.0):
+    #         self.get_logger().error("Gripper action server is not available")
+    #         return False
+
+    #     goal_msg = GripperCommand.Goal()
+    #     goal_msg.command.position = float(position)
+    #     goal_msg.command.max_effort = float(max_effort)
+
+    #     self.get_logger().info(
+    #         f"Sending gripper command: "
+    #         f"position={position:.4f}, max_effort={max_effort:.2f}"
+    #     )
+
+    #     send_future = self.gripper.send_goal_async(goal_msg)
+
+    #     while rclpy.ok() and not send_future.done():
+    #         time.sleep(0.01)
+
+    #     if not send_future.done():
+    #         self.get_logger().error("Gripper goal was not sent")
+    #         return False
+
+    #     goal_handle = send_future.result()
+
+    #     if not goal_handle.accepted:
+    #         self.get_logger().error("Gripper goal was rejected")
+    #         return False
+
+    #     self.get_logger().info("Gripper goal accepted")
+
+    #     result_future = goal_handle.get_result_async()
+
+    #     while rclpy.ok() and not result_future.done():
+    #         time.sleep(0.01)
+
+    #     if not result_future.done():
+    #         self.get_logger().error("Gripper result was not received")
+    #         return False
+
+    #     result = result_future.result().result
+
+    #     self.get_logger().info(
+    #         f"Gripper finished: "
+    #         f"position={result.position:.4f}, "
+    #         f"effort={result.effort:.4f}, "
+    #         f"stalled={result.stalled}, "
+    #         f"reached_goal={result.reached_goal}"
+    #     )
+
+    #     return bool(result.reached_goal)
+    def open_gripper(self) -> bool:
+            return self.send_gripper_command(
+            position=GRIPPER_OPEN_POSITION,
+            max_effort=GRIPPER_MAX_EFFORT
+        )
+
+
+    def close_gripper(self) -> bool:
+        return self.send_gripper_command(
+            position=GRIPPER_CLOSE_POSITION,
+            max_effort=GRIPPER_MAX_EFFORT
+        )
+    def _rgb_callback(self, msg: Image):
+        self.get_logger().info("rgb image is received")
+        try:
+            cv_img = self._bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
+            self.latest_rgb = cv_img.copy()
+        except CvBridgeError as e:
+            self.get_logger().error(f"cv_bridge error: {e}")
+            return
+
+        self.rgb_h, self.rgb_w = cv_img.shape[:2]
+
+        try:
+            detections = detect_rectangles_yolo(self.model, cv_img)
+        except Exception as e:
+            self.get_logger().error(f"detect_rectangles failed: {e}")
+            return
+
+        for det in detections:
+            xmin, xmax, ymin, ymax = det["bbox"]
+            cls_name = det["class"]
+            conf = det["confidence"]
+
+            cv2.rectangle(cv_img, (xmin, ymin), (xmax, ymax), (0, 255, 0), 2)
+            cv2.putText(
+                cv_img, f"{cls_name} {conf:.2f}", (xmin, ymin - 10),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+
+        # try:
+        #     annotated_msg = self._bridge.cv2_to_imgmsg(cv_img, encoding="bgr8")
+        #     annotated_msg.header = msg.header
+        #     self._debug_img_pub.publish(annotated_msg)
+        # except CvBridgeError as e:
+        #     self.get_logger().error(f"Publish debug image failed: {e}")
+
+        
+        with self._mtx:
+            self._detections = detections if len(detections) > 0 else []
+
+    def _depth_img_callback(self, msg: Image):
+        self.get_logger().info("depth callback is received")
+        try:
+            cv_depth = self._bridge.imgmsg_to_cv2(
+                msg, desired_encoding="passthrough")
+        except CvBridgeError as e:
+            self.get_logger().error(f"Depth conversion failed: {e}")
+            return
+
+        with self._mtx:
+            if not self._detections:
+                return
+            detection_snapshot = list(self._detections)
+
+        scaled_bboxes = detection_snapshot
+        if not hasattr(self, "rgb_w"):
+            return
+
+        depth_h, depth_w = cv_depth.shape[:2]
+
+        detectedmsg = DetectedObjectArray()
+        detectedmsg.header.stamp = self.get_clock().now().to_msg()
+        detectedmsg.header.frame_id = self.global_frame_
+
+        for det in scaled_bboxes:
+
+            xmin, xmax, ymin, ymax = det["bbox"]
+            class_name = det["class"]
+
+            cx_pix = int((xmin + xmax) / 2)
+            cy_pix = int((ymin + ymax) / 2)
+
+            self.get_logger().info(f"cx_pix{cx_pix}::cypix::{cy_pix}")
+
+            roi = cv_depth[ymin:ymax, xmin:xmax]
+            valid_depths = roi[np.isfinite(roi) & (roi > 0)]
+
+            if valid_depths.size == 0:
+                self.get_logger().warn(f"BBox[{det}] no valid depth — skipping")
+                continue
+
+            depth = float(np.median(valid_depths)) / 1000.0
+
+            fx = self._cam_model.fx()
+            fy = self._cam_model.fy()
+            ppx = self._cam_model.cx()
+            ppy = self._cam_model.cy()
+
+            cx = (cx_pix - ppx) * depth / fx
+            cy = (cy_pix - ppy) * depth / fy
+            cz = depth
+
+            self.get_logger().info(
+                f"BBox[{det}] centroid optical frame: "
+                f"x={cx:.3f} y={cy:.3f} z={cz:.3f}"
+            )
+
+            pt = PointStamped()
+            pt.header.stamp = msg.header.stamp
+            pt.header.frame_id = self.depth_optical_frame_
+            pt.point.x = cx
+            pt.point.y = cy
+            pt.point.z = cz
+
+            try:
+                if not self.tf_buffer.can_transform(
+                        self.global_frame_, self.depth_optical_frame_,
+                        msg.header.stamp, timeout=Duration(seconds=0.5)):
+                    self.get_logger().warn("TF unavailable")
+                    continue
+
+                transform = self.tf_buffer.lookup_transform(
+                    self.global_frame_, self.depth_optical_frame_,
+                    msg.header.stamp, timeout=Duration(seconds=0.5))
+
+                pt_out = tf2_geometry_msgs.do_transform_point(pt, transform)
+
+            except Exception as e:
+                self.get_logger().warn(f"TF transform failed: {e}")
+                continue
+
+            self.get_logger().info(
+                f"BBox[{det}] in map: "
+                f"x={pt_out.point.x:.3f} y={pt_out.point.y:.3f} z={pt_out.point.z:.3f}"
+            )
+
+            obj = DetectedObject()
+            obj.class_name = class_name
+            obj.confidence = float(det["confidence"])
+            obj.pose.position.x = pt_out.point.x
+            obj.pose.position.y = pt_out.point.y
+            obj.pose.position.z = pt_out.point.z
+            obj.pose.orientation.w = 1.0
+
+            duplicate = False
+            for existing in detectedmsg.objects:
+                if existing.class_name != obj.class_name:
+                    continue
+                dist = math.sqrt(
+                    (existing.pose.position.x - obj.pose.position.x) ** 2 +
+                    (existing.pose.position.y - obj.pose.position.y) ** 2
+                )
+                if dist < self.dedup_dist_thresh_:
+                    duplicate = True
+                    break
+
+            if duplicate:
+                continue
+
+            detectedmsg.objects.append(obj)
+
+        if len(detectedmsg.objects) > 0:
+            self.get_logger().info(
+                f"Publishing {len(detectedmsg.objects)} object pose(s): "
+                f"{[o.class_name for o in detectedmsg.objects]}"
+            )
+            self.detected_object_pub.publish(detectedmsg)
+
+        if self.latest_rgb is not None:
+            debug_msg = self._bridge.cv2_to_imgmsg(
+                self.latest_rgb, encoding="passthrough")
+            debug_msg.header = msg.header
+            self._debug_img_pub.publish(debug_msg)
+
+
+
+    def _is_duplicate_in_batch(self, existing_objects, obj) -> bool:
+        for existing in existing_objects:
+            if existing.class_name != obj.class_name:
+                continue
+            dist = math.sqrt(
+                (existing.pose.position.x - obj.pose.position.x) ** 2 +
+                (existing.pose.position.y - obj.pose.position.y) ** 2)
+            if dist < self.dedup_dist_thresh_:
+                return True
+        return False
+    
+    def _pixel_bbox_to_frame(self, bbox, cv_depth, stamp, target_frame,radius_offset:float=0.0):
+        
+        xmin, xmax, ymin, ymax = bbox
+        depth_h,depth_w=cv_depth.shape[:2]
+        if self.rgb_w != depth_w or self.rgb_h != depth_h:
+            self.get_logger().warn(
+            f"RGB/depth resolution mismatch: "
+            f"RGB={self.rgb_w}x{self.rgb_h}, "
+            f"Depth={depth_w}x{depth_h}"
+        )
+        sx = depth_w / float(self.rgb_w)
+        sy = depth_h / float(self.rgb_h)
+        xmin = int(xmin * sx)
+        xmax = int(xmax * sx)
+        ymin = int(ymin * sy)
+        ymax = int(ymax * sy)
+        xmin = max(0, min(xmin, depth_w - 1))
+        xmax = max(0, min(xmax, depth_w))
+        ymin = max(0, min(ymin, depth_h - 1))
+        ymax = max(0, min(ymax, depth_h))
+        if xmax <= xmin or ymax <= ymin:
+            self.get_logger().warn("Invalid depth bbox")
+            return None
+        
+        
+        
+
+
+
+        cx_pix = int((xmin + xmax) / 2)
+        cy_pix = int((ymin + ymax) / 2)
+        
+        
+        roi = cv_depth[ymin:ymax, xmin:xmax]
+        valid_depths = roi[np.isfinite(roi) & (roi > 0)]
+        if valid_depths.size < DEPTH_ROI_MIN_VALID_PIXELS:
+            self.get_logger().warn(f"BBox[{bbox}] not enough valid depth pixels -- skipping")
+            return None
+
+        if cv_depth.dtype == np.uint16:
+            depth = float(np.median(valid_depths)) / 1000.0
+        else:
+            depth = float(np.median(valid_depths))
+
+        if depth <= 0.05 or depth > 10.0:
+            self.get_logger().warn(
+                f"Invalid depth value: {depth:.3f} m"
+            )
+            return None
+        self.get_logger().info(
+        f"Ball pixel=({cx_pix},{cy_pix}), "
+        f"depth={depth:.3f} m, "
+        f"valid_pixels={valid_depths.size}"
+    )
+        fx = self._cam_model.fx()
+        fy = self._cam_model.fy()
+        ppx = self._cam_model.cx()
+        ppy = self._cam_model.cy()
+        if fx <= 0 or fy <= 0:
+            self.get_logger().error(
+                f"Invalid camera intrinsics: "
+                f"fx={fx}, fy={fy}"
+            )
+            return None
+
+        x = (cx_pix - ppx) * depth / fx
+        y = (cy_pix - ppy) * depth / fy
+        z = depth
+        if radius_offset:
+            ray = np.array([x, y, z], dtype=float)
+            n = np.linalg.norm(ray)
+            if n > 1e-6:
+                x, y, z = ray + (ray/n) * radius_offset
+        
+       
+
+        self.get_logger().info(
+            f"3D optical point: "
+            f"x={x:.3f}, "
+            f"y={y:.3f}, "
+            f"z={z:.3f}"
+        )
+
+        pt = PointStamped()
+        pt.header.stamp = stamp
+        pt.header.frame_id = self.depth_optical_frame_
+        pt.point.x = x
+        pt.point.y = y
+        pt.point.z = z
+
+        try:
+            if not self.tf_buffer.can_transform(
+                    target_frame, self.depth_optical_frame_, stamp, timeout=Duration(seconds=0.5)):
+                self.get_logger().warn("TF unavailable")
+                return None
+            transform = self.tf_buffer.lookup_transform(
+                target_frame, self.depth_optical_frame_, stamp, timeout=Duration(seconds=0.5))
+            
+            pt_out = tf2_geometry_msgs.do_transform_point(
+            pt,
+            transform
+        )
+
+        except Exception as e:
+            self.get_logger().warn(f"TF transform failed: {e}")
+            return None
+        self.get_logger().info(
+        f"3D {target_frame} point: "
+        f"x={pt_out.point.x:.3f}, "
+        f"y={pt_out.point.y:.3f}, "
+        f"z={pt_out.point.z:.3f}"
+    )
+
+        return pt_out
+
+    def golf_ball_pose_callback(self, msg: DetectedObjectArray):
+        if self.robot_busy or not msg.objects:
+            return
+
+        t = self.get_robot_pose()
+        if t is None:
+            return
+
+        valid_objects = [obj.pose for obj in msg.objects if not self.is_object_visited(obj.pose)]
+        if not valid_objects:
+            return
+
+        self.scanning = False
+        self.full_rotation_done = False
+        self.stop_robot()
+
+        for pose in valid_objects:
+            self.add_object(pose)
+
+    def get_robot_pose(self):
+        try:
+            return self.tf_buffer.lookup_transform(
+                self.map_frame, self.robot_base_frame, rclpy.time.Time())
+        except TransformException as ex:
+            self.get_logger().warn(
+                f"Could not transform {self.map_frame} to {self.robot_base_frame}: {ex}")
+            return None
+
+    def is_object_visited(self, pose) -> bool:
+        for vx, vy in self.visited_objects:
+            if math.sqrt((pose.position.x - vx) ** 2 + (pose.position.y - vy) ** 2) < 1.0:
+                return True
+        return False
+
+    def add_object(self, pose):
+        """Add a newly-seen object to memory (dedup by distance)."""
+        for obj in self.detected_objects:
+            dist = math.sqrt((obj["x"] - pose.position.x) ** 2 + (obj["y"] - pose.position.y) ** 2)
+            if dist < 0.5:
+                return  
+        self.detected_objects.append({
+            "x": pose.position.x,
+            "y": pose.position.y,
+            "visited": False,
+        })
+
+    def stop_robot(self):
+        self.cmd_vel_pub.publish(Twist())
+
+    stop_base = stop_robot  
+
+    def plan_next_goal(self):
+        if self.robot_busy:
+            return
+        candidates = [obj for obj in self.detected_objects if not obj["visited"]]
+        if not candidates:
+            return
+        t = self.get_robot_pose()
+        if t is None:
+            return
+        robot_x = t.transform.translation.x
+        robot_y = t.transform.translation.y
+        nearest = min(candidates, key=lambda o: math.hypot(o["x"] - robot_x, o["y"] - robot_y))
+
+        pose = Pose()
+        pose.position.x = nearest["x"]
+        pose.position.y = nearest["y"]
+        self.current_target = nearest
+        self.robot_busy = True
+        threading.Thread(target=self.send_goal, args=(pose,), daemon=True).start()
+
+    def send_goal(self, pose, keep_orientation=False, add_offset=True) -> bool:
+        """Drive to `pose` via Nav2. Returns True on success."""
+        if self.currently_navigating:
+            return False
+
+        self.stop_robot()
+        goal_pose = PoseStamped()
+        goal_pose.header.frame_id = self.map_frame
+        goal_pose.header.stamp = self.navigator.get_clock().now().to_msg()
+
+        t = self.get_robot_pose()
+        if t is None:
+            return False
+        robot_x = t.transform.translation.x
+        robot_y = t.transform.translation.y
+
+        theta = math.atan2(pose.position.y - robot_y, pose.position.x - robot_x)
+
+        if add_offset:
+            offset_x = APPROACH_STANDOFF_DIST * math.cos(theta)
+            offset_y = APPROACH_STANDOFF_DIST * math.sin(theta)
+        else:
+            offset_x = offset_y = 0.0
+
+        if keep_orientation:
+            w, z = pose.orientation.w, pose.orientation.z
+        else:
+            w, _, _, z = euler2quat(0, 0, theta)
+
+        goal_pose.pose.position.x = pose.position.x - offset_x
+        goal_pose.pose.position.y = pose.position.y - offset_y
+        goal_pose.pose.position.z = 0.0
+        goal_pose.pose.orientation.w = w
+        goal_pose.pose.orientation.z = z
+
+        self.get_logger().info(
+            f"Sending nav goal -> x={goal_pose.pose.position.x:.2f}, y={goal_pose.pose.position.y:.2f}")
+
+        success = False
+        try:
+            self.currently_navigating = True
+            self.stop_robot()
+            sleep(0.5)
+
+            self.navigator.goToPose(goal_pose)
+            while not self.navigator.isTaskComplete():
+                sleep(0.1)
+
+            result = self.navigator.getResult()
+            if result == TaskResult.SUCCEEDED:
+                self.get_logger().info("Nav goal succeeded.")
+                success = True
+                if self.current_target is not None:
+                    self.current_target["visited"] = True
+                    self.visited_objects.append((self.current_target["x"], self.current_target["y"]))
+            elif result == TaskResult.CANCELED:
+                self.get_logger().warn("Nav goal canceled.")
+            elif result == TaskResult.FAILED:
+                self.get_logger().error("Nav goal failed.")
+        finally:
+            self.currently_navigating = False
+            self.robot_busy = False
+
+        return success
+
+    
+    def run_mission(self):
+        while rclpy.ok() and not self.camera_info_received:
+            time.sleep(0.2)
+
+        while rclpy.ok():
+            try:
+               
+                self.state = MissionState.DETECT_BALL
+                if not self._run_phase("Detect ball (in front, no search)", self._phase_detect_ball):
+                    self.get_logger().warn("Ball not confirmed in front -- retrying")
+                    continue
+
+                self.state = MissionState.NAVIGATE_TO_BALL
+                if not self._run_phase("Approach ball (visual servo)", self._phase_navigate_to_ball):
+                    self.get_logger().warn("Lost ball while approaching -- retrying pick cycle")
+                    continue
+                if not self._run_phase("Fine reposition for arm reach", self.reposition_for_reach):
+                    self.get_logger().warn("Could not reach arm reach band -- retrying pick cycle")
+                    continue
+
+                self.state = MissionState.PICK
+                if not self._run_phase("Pick ball", self._phase_pick):
+                    self.get_logger().error("Pick failed -- retrying pick cycle")
+                    continue
+
+                
+                self.state = MissionState.DETECT_BOX
+                if not self._run_phase("Search for box", self._phase_detect_box):
+                    self.get_logger().warn("Box not found -- retrying search")
+                    continue
+
+                self.state = MissionState.NAVIGATE_TO_BOX
+                if not self._run_phase("Navigate to box", self._phase_navigate_to_box):
+                    self.get_logger().warn("Nav to box failed -- retrying search")
+                    continue
+
+                self.state = MissionState.PLACE
+                if not self._run_phase("Place ball", self._phase_place):
+                    self.get_logger().error("Place failed -- retrying place cycle")
+                    continue
+
+                self.get_logger().info("Mission cycle complete. Restarting for next ball...")
+
+            except Exception as e:
+                self.get_logger().error(f"Mission step failed: {e}")
+                self.stop_base()
+                time.sleep(2.0)
+
+    def _run_phase(self, label: str, phase_fn):
+        
+        self.get_logger().info(f" {label}")
+        result_box = {}
+
+        def _runner():
+            result_box["ok"] = phase_fn()
+
+        thread = threading.Thread(target=_runner, daemon=True)
+        thread.start()
+        thread.join()
+
+        ok = bool(result_box.get("ok"))
+        self.get_logger().info(f"--- Phase end: {label} -> {'OK' if ok else 'FAILED'} ---")
+        return ok
+
+    
+    def _phase_detect_ball(self) -> bool:
+        deadline = time.monotonic() + DETECT_BALL_CONFIRM_TIMEOUT
+        while time.monotonic() < deadline and rclpy.ok():
+            with self.rgb_lock:
+                frame = None if self.latest_rgb is None else self.latest_rgb.copy()
+            if frame is not None:
+                bbox = detect_rectangles_yolo(self.model,frame)
+                if bbox:
+                    self.last_ball_bbox = bbox[0]
+                    self.get_logger().info(f"Ball confirmed in front at bbox={bbox[0]}")
+                    return True
+            time.sleep(DETECT_BALL_CONFIRM_PERIOD)
+        return False
+
+    
+    def _phase_navigate_to_ball(self) -> bool:
+        self._last_twist = None
+        while rclpy.ok():
+            reached = self.track_ball_step()
+            if reached:
+                return True
+            if self.last_ball_bbox is None:
+                pass
+            time.sleep(TRACK_LOOP_PERIOD_SEC)
+           
+            if self._ball_lost_for(seconds=5.0):
+                self.stop_base()
+                return False
+        return False
+
+    def _ball_lost_for(self, seconds: float) -> bool:
+        if self.last_ball_seen_time is None:
+            return False
+
+        return (
+            time.monotonic() - self.last_ball_seen_time
+        ) > seconds
+    
+
+    def track_ball_step(self) -> bool:
+        with self._mtx:
+            dets = list(self._detections)
+            det_age = time.monotonic() - self._det_time
+            frame = None if self.latest_rgb is None else self.latest_rgb
+            img_w = None if frame is None else frame.shape[1]
+
+        if img_w is None:
+            return False
+
+        twist = Twist()
+
+        # no ball, or detection too old (>0.5 s)
+        if not dets or det_age > 0.5:
+            self.get_logger().warn("Ball not visible, rotating to search")
+            twist.angular.z = SEARCH_SPIN_SPEED
+            self._last_twist = twist
+            self.cmd_vel_pub.publish(twist)
+            return False
+
+        # pick best detection (highest confidence). Add class filter if needed:
+        # dets = [d for d in dets if d["class"] == "ball"]
+        det = max(dets, key=lambda d: d["confidence"])
+        x1, x2, y1, y2 = det["bbox"]       # order is x1, x2, y1, y2
+
+        self.last_ball_seen_time = time.monotonic()
+        self.last_ball_bbox = (x1, x2, y1, y2)
+
+        cx = (x1 + x2) / 2.0
+        area = (x2 - x1) * (y2 - y1)
+        error_x = cx - img_w / 2.0
+
+        angular = -TRACK_ANGULAR_GAIN * error_x
+        twist.angular.z = max(-TRACK_MAX_ANGULAR, min(TRACK_MAX_ANGULAR, angular))
+
+        centered = abs(error_x) < CENTER_TOLERANCE_PX
+        close_enough = area >= TARGET_AREA
+
+        if centered and close_enough:
+            twist = Twist()                 # full stop
+            self._last_twist = twist
+            self.cmd_vel_pub.publish(twist)
+            self.get_logger().info(f"Ball reached: cx={cx:.0f}, area={area:.0f}")
+            return True
+
+        twist.linear.x = TRACK_LINEAR_SPEED if centered else 0.0
+        self._last_twist = twist
+        self.cmd_vel_pub.publish(twist)
+        self.get_logger().info(
+            f"Tracking: cx={cx:.0f}, err={error_x:.0f}, area={area:.0f} "
+            f"(target {TARGET_AREA}, centered={centered}, conf={det['confidence']:.2f})")
+        return False
+
+    
+    def _phase_pick(self) -> bool:
+        if self.last_ball_bbox is None:
+            self.get_logger().error("No ball bbox available for pick")
+            return False
+        pt_base = self.get_pose_in_base(self.last_ball_bbox,radius_offset=BALL_RADIUS_M)
+        if pt_base is None:
+            self.get_logger().error("Could not localize ball in base frame")
+            return False
+        return self.run_pick_sequence(pt_base)
+
+   
+    def _phase_detect_box(self) -> bool:
+        bbox = self.search_for(detect_rectangles_yolo, timeout=SEARCH_SPIN_TIMEOUT)
+        if bbox is None:
+            return False
+        self.last_box_bbox = bbox
+        return True
+
+    def search_for(self, detector_fn, timeout: float = SEARCH_SPIN_TIMEOUT):
+        """Spin in place scanning for an object with `detector_fn`. Returns
+        the bbox [xmin, xmax, ymin, ymax] or None on timeout."""
+        deadline = time.monotonic() + timeout
+        twist = Twist()
+        while time.monotonic() < deadline and rclpy.ok():
+            with self.rgb_lock:
+                frame = None if self.latest_rgb is None else self.latest_rgb.copy()
+            if frame is not None:
+                bboxes = detector_fn(frame)
+                if bboxes:
+                    self.stop_base()
+                    return bboxes[0]
+
+            twist.angular.z = SEARCH_SPIN_SPEED
+            self.cmd_vel_pub.publish(twist)
+            time.sleep(SEARCH_SPIN_PERIOD)
+
+        self.stop_base()
+        return None
+
+   
+    def _phase_navigate_to_box(self) -> bool:
+        if self.last_box_bbox is None:
+            return False
+        obj_map_pose = self.get_map_pose_for_bbox(self.last_box_bbox)
+        if obj_map_pose is None:
+            self.get_logger().error("Could not localize box in map frame")
+            return False
+        approach = self.compute_approach_pose(obj_map_pose)
+        return self.send_nav_goal(approach)
+
+    def get_map_pose_for_bbox(self, bbox):
+        with self.rgb_lock:
+            frame = None if self.latest_rgb is None else self.latest_rgb.copy()
+        if frame is None or self.latest_rgb_msg is None:
+            return None
+        
+        cv_depth = self._latest_depth_for_bbox()
+        if cv_depth is None:
+            return None
+        pt_out = self._pixel_bbox_to_frame(bbox, cv_depth, self.latest_rgb_msg.header.stamp, self.global_frame_)
+        if pt_out is None:
+            return None
+        pose = Pose()
+        pose.position.x = pt_out.point.x
+        pose.position.y = pt_out.point.y
+        pose.position.z = pt_out.point.z
+        pose.orientation.w = 1.0
+        return pose
+
+    def _latest_depth_for_bbox(self):
+       
+        return getattr(self, "_latest_depth_cv", None)
+
+    def compute_approach_pose(self, obj_map_pose: Pose) -> Pose:
+        """Offset a standoff distance in front of the box, facing it, so the
+        arm has room to place. Uses the robot's current heading toward the
+        box to decide the approach direction."""
+        t = self.get_robot_pose()
+        approach = Pose()
+        if t is None:
+            approach.position = obj_map_pose.position
+            return approach
+
+        robot_x = t.transform.translation.x
+        robot_y = t.transform.translation.y
+        theta = math.atan2(obj_map_pose.position.y - robot_y, obj_map_pose.position.x - robot_x)
+
+        approach.position.x = obj_map_pose.position.x - APPROACH_STANDOFF_DIST * math.cos(theta)
+        approach.position.y = obj_map_pose.position.y - APPROACH_STANDOFF_DIST * math.sin(theta)
+        approach.position.z = 0.0
+        w, _, _, z = euler2quat(0, 0, theta)
+        approach.orientation.w = w
+        approach.orientation.z = z
+        return approach
+    def _wait_for_future(self, future, timeout_sec: float, poll_period: float = 0.01) -> bool:
+        deadline = time.monotonic() + timeout_sec
+        while rclpy.ok():
+            if future.done():
+                return True
+            if time.monotonic() >= deadline:
+                return False
+            time.sleep(poll_period)
+        return future.done()
+    def send_gripper_command(self, position: float, max_effort: float = 50.0, timeout_sec: float = 5.0) -> bool:
+        if not self.gripper.server_is_ready():
+            self.get_logger().error("gripper action server is not ready")
+            return False
+
+        goal_msg = GripperCommand.Goal()
+        goal_msg.command.position = float(position)
+        goal_msg.command.max_effort = float(max_effort)
+
+        self.get_logger().info(
+            f"Sending gripper command: "
+            f"position={position:.4f}, "
+            f"max_effort={max_effort:.2f}"
+        )
+
+        send_goal_future = self.gripper.send_goal_async(goal_msg)
+        if not self._wait_for_future(send_goal_future, timeout_sec=timeout_sec):
+            self.get_logger().error("timed out waiting for gripper goal")
+            return False
+
+        goal_handle = send_goal_future.result()
+        if goal_handle is None:
+            self.get_logger().error("no gripper goal handle")
+            return False
+        if not goal_handle.accepted:
+            self.get_logger().error("gripper goal was rejected")
+            return False
+        self.get_logger().info("gripper goal was accepted")
+
+        result_future = goal_handle.get_result_async()
+        if not self._wait_for_future(result_future, timeout_sec=timeout_sec):
+            self.get_logger().error("timed out for gripper result")
+            return False
+
+        result_wrapper = result_future.result()
+        if result_wrapper is None:
+            self.get_logger().error("no result returned from gripper")
+            return False
+
+        result = result_wrapper.result
+        self.get_logger().info(
+            f"Gripper result, "
+            f"position={result.position:.4f}, "
+            f"effort={result.effort:.4f}, "
+            f"stalled={result.stalled}, "
+            f"reached_goal={result.reached_goal}"
+        )
+        time.sleep(0.2)
+        if self.joint_state is not None:
+            for name, val in zip(self.joint_state.name, self.joint_state.position):
+                if 'gripper' in name.lower():
+                    self.get_logger().info(f"Real joint_states check: {name}={val:.4f} (target={position:.4f})")
+                    if abs(val - position) > 0.005:
+                        self.get_logger().error(f"Gripper joint NOT at target! actual={val:.4f} target={position:.4f}")
+                        return False
+
+        if result.reached_goal:
+            self.get_logger().info("gripper command successfully completed")
+            return True
+        if result.stalled:
+            self.get_logger().warn("gripper stalled")
+            return False
+
+        
+        self.get_logger().warn("gripper command finished without reaching goal or stalling")
+        return False
+    
+    def send_nav_goal(self, approach_pose: Pose):
+        return self.send_goal(approach_pose, keep_orientation=True, add_offset=False)
+
+    
+    def _phase_place(self) -> bool:
+        self.get_logger().info("Re-detecting box close-up for place...")
+        bbox = self.search_for(detect_rectangles_yolo, timeout=5.0)
+        if bbox is None:
+            self.get_logger().warn("Lost box after nav")
+            return False
+        pt_base = self.get_pose_in_base(bbox)
+        if pt_base is None:
+            self.get_logger().error("Could not localize box in base frame")
+            return False
+        return self.run_place_sequence(pt_base)
+
+    def get_pose_in_base(self, bbox,radius_offset:float=0.0):
+        cv_depth = self._latest_depth_for_bbox()
+        if cv_depth is None or self.latest_rgb_msg is None:
+            return None
+        return self._pixel_bbox_to_frame(bbox, cv_depth, self._latest_depth_msg.header.stamp, self.robot_base_frame_,radius_offset=radius_offset)
+
+    def build_pose(self, pt_base: PointStamped) -> PoseStamped:
+        pose = PoseStamped()
+        pose.header.frame_id = pt_base.header.frame_id
+        pose.header.stamp = self.get_clock().now().to_msg()
+        pose.pose.position.x = pt_base.point.x
+        pose.pose.position.y = pt_base.point.y
+        pose.pose.position.z = pt_base.point.z
+        pose.pose.orientation.w = 0.0
+        pose.pose.orientation.x = 1.0
+        pose.pose.orientation.y = 0.0
+        pose.pose.orientation.z = 0.0
+        return pose
+    def run_pick_sequence(self,pt_base:PointStamped)->bool:
+        grasp_pose=self.build_pose(pt_base)
+        pre_grasp=PoseStamped()
+        pre_grasp.header=grasp_pose.header
+        pre_grasp.pose.position.x = grasp_pose.pose.position.x
+        pre_grasp.pose.position.y = grasp_pose.pose.position.y
+        pre_grasp.pose.position.z = grasp_pose.pose.position.z + GRASP_Z_OFFSET_PREGRASP
+        pre_grasp.pose.orientation = grasp_pose.pose.orientation
+        self.get_logger().info("opening a gripper")
+        if not self.open_gripper():
+              self.get_logger().info("failed to opening a gripper") 
+              return False
+        self.get_logger().info("moving to pregrasp")
+     
+        if not self.move_to_pose(pre_grasp,cartesian=False):
+              self.get_logger().info("failed to reach a pre grasp pose")
+              return False
+        self.get_logger().info("cartesian decent to grasp pose") 
+        self._log_ee_pose("post-pregrasp")
+      
+        if not self.move_to_pose(grasp_pose,cartesian=False):
+            self.get_logger().info("failed to reach a grasp pose") 
+            return False
+        self.get_logger().info("closing a gripper")
+        self._log_ee_pose("post-pregrasp")
+        if not self.close_gripper():
+              self.get_logger().info("failed to close a gripper")
+              return False
+        time.sleep(0.3) 
+        retreat=PoseStamped()
+        retreat.header=grasp_pose.header
+        retreat.pose.position.x = grasp_pose.pose.position.x
+        retreat.pose.position.y = grasp_pose.pose.position.y
+        retreat.pose.position.z = grasp_pose.pose.position.z + GRASP_Z_OFFSET_LIFT
+        retreat.pose.orientation = grasp_pose.pose.orientation
+        self.get_logger().info("cartesian")
+       
+        if not self.move_to_pose(retreat,cartesian=False):
+            self.get_logger().error("failed to lift object")
+            return False
+        self.get_logger().info("pick sequence completed")
+        self._log_ee_pose("post-pregrasp")
+        return True
+    def run_place_sequence(self,pt_base:PointStamped)->bool:
+        drop_pose=self.build_pose(pt_base)
+        drop_pose.pose.position.z=(pt_base.point.z+PLACE_DROP_HEIGHT)
+        pre_place=PoseStamped()
+        pre_place.header=drop_pose.header
+        pre_place.pose.position.x=drop_pose.pose.position.x
+        pre_place.pose.position.y=drop_pose.pose.position.y
+        pre_place.pose.position.z=drop_pose.pose.position.z + PLACE_Z_OFFSET_PRE
+        pre_place.pose.orientation=(drop_pose.pose.orientation)
+       
+        if not self.move_to_pose(pre_place,cartesian=False):
+            self.get_logger().error("failed to reach pre-place pose.")
+            return False
+        self.get_logger().info("cartesian descent to drop pose")
+       
+        if not self.move_to_pose(drop_pose,cartesian=False): 
+            self.get_logger().error( "Failed to reach drop pose." ) 
+            return False
+        self.get_logger().info( "STEP 3: Opening gripper to release object..." )
+        self._log_ee_pose("post-pregrasp")
+        if not self.open_gripper(): 
+            self.get_logger().error( "Failed to open gripper." ) 
+            return False
+        
+        time.sleep(0.3)
+        self.get_logger().info( "STEP 4: Cartesian retreat..." )
+      
+        if not self.move_to_pose(pre_place,cartesian=False): 
+            self.get_logger().error( "Failed to retreat from place position." ) 
+            return False 
+        self.get_logger().info( "Place sequence completed successfully." )
+        self._log_ee_pose("post-pregrasp")
+        return True
+    
+def main():
+    rclpy.init()
+    node = PickAndPlaceNode()
+    executor = MultiThreadedExecutor()
+    executor.add_node(node)
+
+    mission_thread = threading.Thread(target=node.run_mission, daemon=True)
+    mission_thread.start()
+
+    try:
+        executor.spin()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,21 @@
+robots:
+  - name: transporter
+    x_pose: "-1.5"
+    y_pose: "-0.5"
+    z_pose: 0.01
+    enabled: true
+  - name: manipulator
+    x_pose: "-1.5"
+    y_pose: "0.5"
+    z_pose: 0.01
+    enabled: true
+  - name: sr3
+    x_pose: "1.5"
+    y_pose: "-0.5"
+    z_pose: 0.01
+    enabled: true
+  - name: sr4
+    x_pose: "1.5"
+    y_pose: "0.5"
+    z_pose: 0.01
+    enabled: true

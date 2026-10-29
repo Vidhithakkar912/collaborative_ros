@@ -1,0 +1,182 @@
+# ══════════════════════════════════════════════════════════════════════
+# planning_config.yaml
+# Single source of truth for all system config + RAG knowledge base
+# ══════════════════════════════════════════════════════════════════════
+
+# ── RAG Knowledge Base ────────────────────────────────────────────────
+rag_knowledge_base:
+  entries:
+
+    - id: auto_location
+      text: >
+        go to a location, navigate to room, send robot to location,
+        move to room, send a robot to location, navigate to location
+      mode: auto_location
+      description: >
+        User wants a robot to go to a named location but does NOT specify
+        which robot. System picks nearest idle robot automatically.
+      json: |
+        {"commands":[{"mode":"auto_location","goals":["<location>"]}]}
+      example_inputs:
+        - "go to room1"
+        - "navigate to room2"
+        - "send a robot to room3"
+        - "move to room4"
+
+    - id: waypoint_chain
+      text: >
+        specific robot go to location, robot navigate to room,
+        robot visit multiple locations, robot goto room then room,
+        robot go to location1 then location2
+      mode: waypoint_chain
+      description: >
+        User specifies EXPLICIT robot name AND ordered list of locations.
+        Robot navigates to each goal sequentially.
+      json: |
+        {"commands":[{"mode":"waypoint_chain","robot":"<robot>","goals":["<location1>","<location2>"]}]}
+      example_inputs:
+        - "tb1 go to room1"
+        - "tb1 goto room2 then room3"
+        - "tb1 visit room1 then room2"
+        - "tb2 navigate to room1 and then room2"
+
+    - id: auto_object
+      text: >
+        go to object, find red box, navigate to detected object,
+        go to box, find the object, go to red object, goto object
+      mode: auto_object
+      description: >
+        User wants any robot to navigate to a detected visual object.
+        System picks nearest robot automatically using box_poses.
+      json: |
+        {"commands":[{"mode":"auto_object"}]}
+      example_inputs:
+        - "go to red object"
+        - "find the box"
+        - "navigate to the detected object"
+        - "go to object"
+
+    - id: named_robot_object
+      text: >
+        specific robot go to object, robot find red box,
+        robot navigate to detected object, robot goto box,
+        robot go to the red object, robot find object
+      mode: named_robot_object
+      description: >
+        User specifies EXPLICIT robot AND wants it to navigate to
+        a detected visual object using its own box_poses stream.
+      json: |
+        {"commands":[{"mode":"named_robot_object","robot":"<robot>"}]}
+      example_inputs:
+        - "tb1 go to red object"
+        - "tb1 find the box"
+        - "tb2 navigate to detected object"
+        - "tb1 goto object"
+        - "tb1 go to the red object"
+    - id: movement
+      text: >
+        move robot, go left, go right, move forward,
+        move backward, rotate left, rotate right,
+        turn left, turn right, stop moving
+
+      mode: movement
+
+      description: >
+        Low-level velocity control commands for a specific robot.
+
+      json: |
+        {"commands":[{"mode":"movement","robot":"<robot>","direction":"<direction>"}]}
+
+      example_inputs:
+        - "tb1 go left"
+        - "tb1 move forward"
+        - "tb1 go right"
+        - "tb1 move backward"
+        - "tb1 turn left"
+        - "tb1 stop"
+    - id: coordinate_navigation
+      text: >
+        go to coordinates, navigate to x y yaw,
+        move robot to pose, goto x y theta
+
+      mode: coordinate
+
+      description: >
+        Robot navigates to explicit map coordinates.
+
+      json: |
+        {"commands":[{"mode":"coordinate","robot":"<robot>","x":1.0,"y":2.0,"yaw":0.0}]}
+
+      example_inputs:
+        - "tb1 go to x 1.0 y 2.0"
+        - "tb1 goto 3 4"
+        - "tb1 navigate to x 2 y 5 yaw 1.57"
+    - id: stop_robot
+      text: >
+        stop robot, cancel navigation, halt robot,
+        emergency stop, stop moving
+
+      mode: stop
+
+      description: >
+        Immediately stops robot motion and cancels navigation.
+
+      json: |
+        {"commands":[{"mode":"stop","robot":"<robot>"}]}
+
+      example_inputs:
+        - "stop tb1"
+        - "tb1 stop"
+        - "cancel tb1"
+        - "halt tb1"
+
+distance_function:
+  name: euclidean_2d
+  formula: "sqrt((rx - tx)^2 + (ry - ty)^2)"
+  inputs:
+    rx: robot current x from odometry
+    ry: robot current y from odometry
+    tx: target x (from locations.yaml or detected pose)
+    ty: target y (from locations.yaml or detected pose)
+  notes: >
+    All robots are ranked by this distance. The nearest IDLE robot is
+    selected first. If no idle robot exists, the nearest busy robot is
+    chosen as fallback. Distance is recalculated at assignment time.
+
+# ── Robot Selection Policy ────────────────────────────────────────────
+robot_selection:
+  prefer_idle: true
+  fallback_to_busy: true
+  arrival_threshold_m: 0.3
+  goal_timeout_s: 60
+
+# ── Object Tracking ───────────────────────────────────────────────────
+object_tracking:
+  dedup_radius_m: 0.5
+  visited_radius_m: 1.0
+  scan_angular_speed: 0.5
+  stop_offset_m: 0.5
+
+# ── LLM Config ───────────────────────────────────────────────────────
+llm:
+  model_path: "/home/einfochips/models/qwen2.5-coder-0.5b-instruct-q4_0.gguf"
+  n_ctx: 2048
+  n_threads: 8
+  n_gpu_layers: 0
+  max_tokens: 200
+  temperature: 0.0
+  top_p: 1.0
+
+# ── Topics ────────────────────────────────────────────────────────────
+topics:
+  rgb_image:   "/{ns}/camera/camera/color/image_raw"
+  depth_image: "/{ns}/camera/camera/depth/image_raw"
+  camera_info: "/{ns}/camera/camera/depth/camera_info"
+  tf:          "/{ns}/tf"
+  tf_static:   "/{ns}/tf_static"
+  box_poses:   "/{ns}/box_poses"
+  goal_pose:   "/{ns}/goal_pose"
+  cmd_vel:     "/{ns}/cmd_vel"
+  odom:        "/{ns}/odom"
+  chat_input:  "/chat_input"
+  assignment:  "/robot_assignment"

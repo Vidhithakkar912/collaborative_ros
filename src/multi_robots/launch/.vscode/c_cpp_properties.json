@@ -1,0 +1,28 @@
+{
+  "configurations": [
+    {
+      "browse": {
+        "databaseFilename": "${default}",
+        "limitSymbolsToIncludedHeaders": false
+      },
+      "includePath": [
+        "/home/einfochips/tb3_ws/install/turtlebot3_fake_node/include/**",
+        "/home/einfochips/tb3_ws/install/turtlebot3_msgs/include/**",
+        "/home/einfochips/tb3_ws/install/turtlebot3_gazebo/include/**",
+        "/opt/ros/humble/include/**",
+        "/home/einfochips/ros2_ws/llama.cpp/include/**",
+        "/home/einfochips/ros2_ws/src/my_cpp_pkg/include/**",
+        "/home/einfochips/ros2_ws/src/my_robot_description/Xacro/include/**",
+        "/home/einfochips/ros2_ws/src/turtlebot3_simulations/turtlebot3_fake_node/include/**",
+        "/home/einfochips/ros2_ws/src/turtlebot3_simulations/turtlebot3_gazebo/include/**",
+        "/usr/include/**"
+      ],
+      "name": "ROS",
+      "intelliSenseMode": "gcc-x64",
+      "compilerPath": "/usr/bin/gcc",
+      "cStandard": "gnu11",
+      "cppStandard": "c++14"
+    }
+  ],
+  "version": 4
+}
