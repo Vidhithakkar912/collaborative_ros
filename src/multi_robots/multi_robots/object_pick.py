@@ -464,7 +464,7 @@ class PickAndPlaceNode(Node):
         goal.pose.orientation.w = math.cos(theta / 2.0)
 
         self.get_logger().info(
-            f"Nav goal: x={goal.pose.position.x:.2f} y={goal.pose.position.y:.2f}")
+            f"Navigation goal: x={goal.pose.position.x:.2f} y={goal.pose.position.y:.2f}")
         self.stop_base()
         self.navigator.goToPose(goal)
         while not self.navigator.isTaskComplete():
