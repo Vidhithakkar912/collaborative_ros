@@ -54,7 +54,7 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 
 # amr_username = os.getenv('ROS_USERNAME')
 # if amr_username == 'qrobot':
-NAV_CONFIG_FILE = 'nav2_params_jazzy_smartrover.yaml'
+NAV_CONFIG_FILE = 'nav2_params_humble_startrace1.yaml'
 # elif amr_username == 'smartrover':
 #     NAV_CONFIG_FILE = 'nav2_params_inorbit.yaml'
 # else:
@@ -73,6 +73,7 @@ def generate_launch_description():
     slam = LaunchConfiguration('slam')
     nav2_launch_dir = os.path.join(prefix_address, 'launch')
     params_file = os.path.join(prefix_address, 'config', NAV_CONFIG_FILE)
+    print(f"params_file:{params_file}")
     # namespace_str, h_namespace_action = get_namespace_data()
     # if None == namespace_str:
     #     print("Not able to get namespace id")

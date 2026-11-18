@@ -130,8 +130,8 @@ def generate_launch_description():
             controller_manager_config
         ],
         remappings=[
-            ('~/cmd_vel_unstamped', '/cmd_vel'),
-            ('~/odom', 'odom')
+            ('/diff_drive_controller/cmd_vel_unstamped', '/cmd_vel'),
+            ('/diff_drive_controller/odom', 'odom_ignore')
         ],
         output='both',
         condition=UnlessCondition(use_sim))

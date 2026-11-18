@@ -45,7 +45,7 @@ def generate_launch_description():
 
     lifecycle_nodes = [
         'controller_server',
-        'smoother_server',
+       # 'smoother_server',
         'planner_server',
         'behavior_server',
         'bt_navigator',
@@ -142,7 +142,8 @@ def generate_launch_description():
                 respawn=use_respawn,
                 respawn_delay=2.0,
                 parameters=[configured_params],
-                arguments=['--ros-args', '--log-level', log_level],
+                #arguments=['--ros-args', '--log-level', log_level],
+                arguments=['--ros-args', '--log-level', 'controller_server:=debug'],
                 remappings=remappings,
             ),
             Node(
@@ -164,7 +165,7 @@ def generate_launch_description():
                 respawn=use_respawn,
                 respawn_delay=2.0,
                 parameters=[configured_params],
-                arguments=['--ros-args', '--log-level', log_level],
+                #arguments=['--ros-args', '--log-level', log_level],
                 remappings=remappings,
             ),
             Node(
@@ -273,14 +274,14 @@ def generate_launch_description():
                 parameters=[configured_params],
                 remappings=remappings,
             ),
-            ComposableNode(
-                package='nav2_velocity_smoother',
-                plugin='nav2_velocity_smoother::VelocitySmoother',
-                name='velocity_smoother',
-                parameters=[configured_params],
-                remappings=remappings
-                + [('cmd_vel', 'cmd_vel_nav'), ('cmd_vel_smoothed', 'cmd_vel')],
-            ),
+            # ComposableNode(
+            #     package='nav2_velocity_smoother',
+            #     plugin='nav2_velocity_smoother::VelocitySmoother',
+            #     name='velocity_smoother',
+            #     parameters=[configured_params],
+            #     remappings=remappings
+            #     + [('cmd_vel', 'cmd_vel_nav'), ('placmd_vel_smoothed', 'cmd_vel')],
+            # ),
             ComposableNode(
                 package='nav2_lifecycle_manager',
                 plugin='nav2_lifecycle_manager::LifecycleManager',

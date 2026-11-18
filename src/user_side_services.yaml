@@ -1,0 +1,38 @@
+# Dashboard config for the USER SIDE (server / laptop).   Run:
+#   python3 dashboard_server.py --config services_server.yaml --port 8081
+
+title: "USER SIDE - planner"
+
+setup:
+  - /opt/ros/jazzy/setup.bash          # TODO your ROS distro
+  - ~/ros2_ws/install/setup.bash       # TODO the workspace that contains package `agent`
+
+# robot names as the planner sees them (zenoh namespace) -> fleet table + chat
+robots: [manipulator, sr2]
+watch_topics:
+  - /manipulator/skill_status
+  - /manipulator/odom
+  - /manipulator/detected_objects
+  - /robot_status
+
+services:
+  zenoh_bridge:
+    group: network
+    description: zenoh bridge (user side)
+    cmd: "zenoh_bridge_ros2dds -e tcp/192.168.0.101:7447"
+
+  planner:
+    group: agent
+    description: planner / LLM agent
+    cmd: >
+      ros2 run agent planner --ros-args
+      -p detection_mode:=external
+      -p cmd_vel_stamped:=true
+    depends_on: [zenoh_bridge]
+    wait_sec: 3
+
+  chat_gui:
+    group: agent
+    description: chat GUI
+    cmd: "ros2 run agent chat_gui"
+    depends_on: [planner]

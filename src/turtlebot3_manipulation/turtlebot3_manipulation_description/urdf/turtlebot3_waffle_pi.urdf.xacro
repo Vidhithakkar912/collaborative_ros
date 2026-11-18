@@ -11,7 +11,7 @@ https://github.com/ROBOTIS-GIT/turtlebot3/blob/kinetic-devel/turtlebot3_descript
   <xacro:property
     name="meshes_file_direction"
     value="package://turtlebot3_manipulation_description/meshes/turtlebot3_waffle_pi"/>
-
+<!--
   <link name="${prefix}base_footprint"/>
 
   <joint name="${prefix}base_joint" type="fixed">
@@ -19,7 +19,7 @@ https://github.com/ROBOTIS-GIT/turtlebot3/blob/kinetic-devel/turtlebot3_descript
     <child link="${prefix}base_link" />
     <origin xyz="0 0 0.010" rpy="0 0 0"/>
   </joint>
-
+-->
   <link name="${prefix}base_link">
     <visual>
       <origin xyz="-0.064 0 0.0" rpy="0 0 0"/>

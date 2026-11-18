@@ -1,6 +1,6 @@
 ydlidar_ros2_driver_node:
   ros__parameters:
-    #    port: /dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0001-if00-port0
+    #port: /dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0001-if00-port0
     port: /dev/ttyUSB0
     frame_id: "base_scan"
     ignore_array: ""
@@ -16,8 +16,8 @@ ydlidar_ros2_driver_node:
     isSingleChannel: true
     intensity: false
     support_motor_dtr: true
-    angle_max: 360.0
-    angle_min: -360.0
+    angle_max: 270.0
+    angle_min: -270.0
     range_max: 8.0
     range_min: 0.1
     frequency: 10.0

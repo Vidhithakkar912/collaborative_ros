@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Robot Dashboard</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header>
+    <h1 id="title">Robot Dashboard</h1>
+    <span id="conn" class="pill off">offline</span>
+    <span id="rosflag" class="pill off">ROS off</span>
+    <div class="spacer"></div>
+    <button id="btnStartAll" class="light">Start everything</button>
+    <button id="btnKillAll" class="light">Stop everything</button>
+    <button id="btnStopRobots" class="danger">STOP ROBOTS</button>
+  </header>
+
+  <main>
+    <section class="col">
+      <div id="topics" class="chips"></div>
+      <div id="groups"></div>
+    </section>
+
+    <section class="col">
+      <div class="panel">
+        <div class="panel-head">
+          <strong>Logs: <span id="logName">(click a service)</span></strong>
+          <label><input type="checkbox" id="autoscroll" checked> autoscroll</label>
+          <button id="btnClearLog" class="small">clear</button>
+        </div>
+        <pre id="log"></pre>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><strong>Fleet</strong></div>
+        <table id="fleet"><thead>
+          <tr><th>robot</th><th>skill server</th><th>agent</th><th>planner</th><th>goal</th><th></th></tr>
+        </thead><tbody></tbody></table>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><strong>Chat with planner</strong></div>
+        <div id="chat"></div>
+        <form id="chatForm">
+          <input id="chatInput" placeholder="e.g. manipulator pick the ball" autocomplete="off">
+          <button>send</button>
+        </form>
+      </div>
+    </section>
+  </main>
+  <script src="/static/app.js"></script>
+</body>
+</html>

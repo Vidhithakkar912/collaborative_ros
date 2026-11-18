@@ -32,12 +32,12 @@ diff_drive_controller:
 
     publish_rate: 50.0
     odom_frame_id: odom
-    base_frame_id: base_footprint
+    base_frame_id: base_link
     pose_covariance_diagonal : [0.001, 0.001, 0.001, 0.001, 0.001, 0.01]
     twist_covariance_diagonal: [0.001, 0.001, 0.001, 0.001, 0.001, 0.01]
 
-    open_loop: true
-    enable_odom_tf: true
+    open_loop: false #changed from true to false 3-nov-2026
+    enable_odom_tf: false
 
     cmd_vel_timeout: 0.5
     #publish_limited_velocity: true

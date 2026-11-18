@@ -1,0 +1,90 @@
+# Dashboard config for the ROBOT.   Run (from a terminal on the robot):
+#   python3 dashboard_server.py --config services_robot.yaml --port 8080 --host 0.0.0.0
+# Search for TODO: only those lines need your input.
+
+title: "ROBOT - manipulator"
+
+# sourced before every command, in this order
+setup:
+  - /opt/ros/jazzy/setup.bash          # TODO your ROS distro
+  - ~/collaborative_ros/install/setup.bash       # TODO the workspace that contains package `agent`
+
+# robot-local topics have NO namespace (zenoh adds /manipulator for the server)
+robots: []
+watch_topics:
+  - /scan
+  - /odom
+  - /camera/camera/color/image_raw
+  - /detected_objects
+  - /skill_status
+
+services:
+  zenoh_bridge:
+    group: network
+    description: zenoh bridge (robot side, namespace /manipulator)
+    cmd: "zenoh-bridge-ros2dds -c /home/startrace1/zenoh_namespace.json5"
+    cwd: ~/                                  # TODO folder that contains zenoh_namespace.json5
+
+  hardware:
+    group: base
+    description: TurtleBot3 manipulation hardware bringup
+    cmd: "ros2 launch turtlebot3_manipulation_bringup hardware.launch.py"
+    wait_sec: 5
+
+  lidar:
+    group: base
+    description: YDLidar
+    cmd: "ros2 launch turtlebot3_manipulation_bringup ydlidar.launch.py"
+    depends_on: [hardware]
+    wait_sec: 2
+
+  navigation:
+    group: navigation
+    description: Cartographer + Nav2
+    cmd: "ros2 launch turtlebot3_manipulation_cartographer cartographer_mapping_Nav2.launch.py"
+    depends_on: [hardware, lidar]
+    wait_sec: 8
+
+  # TODO: only if /move_action is NOT already provided by hardware.launch.py, add MoveIt:
+  moveit:
+    group: moveit
+    description: MoveIt move_group
+    cmd: "ros2 launch turtlebot3_manipulation_moveit_config moveit_core.launch.py"
+    depends_on: [hardware]
+    wait_sec: 5
+
+  camera:
+    group: vision
+    description: RealSense 640x480x30, aligned depth
+    cmd: >
+      ros2 launch realsense2_camera rs_launch.py
+      depth_module.depth_profile:=640x480x30
+      rgb_camera.color_profile:=640x480x30
+      align_depth.enable:=true
+    ready_topic: /camera/camera/color/image_raw
+
+  detection:
+    group: vision
+    description: YOLO + depth -> /detected_objects (best.pt loads here only)
+    cmd: "source ~/env/bin/activate && export PYTHONPATH=$PYTHONPATH:~/env/lib/python3.12/site-packages && ros2 run agent multi_object_detection"
+    depends_on: [camera, navigation]
+  pick:
+    group: pick
+    description: moveit2 
+    cmd: "ros2 run multi_robots object_pick"
+    depends_on: [moveit]
+
+  skill_server:
+    group: skills
+    description: pick_place = find / pick / place skill server
+    cmd: >
+      ros2 run agent pick_place 
+    depends_on: [hardware, navigation, detection]
+    ready_topic: /skill_status
+
+  rviz:
+    group: tools
+    description: RViz (needs a screen / DISPLAY)
+    cmd: "rviz2"
+    env:
+      DISPLAY: ":0"                           # TODO your display

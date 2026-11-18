@@ -1,0 +1,315 @@
+#!/usr/bin/env python3
+"""YOLO + point-cloud pose estimation.
+
+For every YOLO box, the depth pixels inside it are deprojected into a small point
+cloud (camera colour frame), cleaned (pass-through + statistical outlier removal)
+and fitted:
+    ball -> fixed-radius sphere fit      -> sphere CENTRE
+    box  -> centroid of the visible face
+The result is transformed to the map frame and published as DetectedObjectArray
+on `detected_objects`.
+
+Requires depth ALIGNED to colour (RealSense: align_depth.enable:=true), so the
+YOLO pixels, the colour intrinsics and the depth image all share one frame.
+"""
+
+import math
+import threading
+import traceback
+
+import cv2
+import image_geometry
+import message_filters
+import numpy as np
+import rclpy
+import tf2_geometry_msgs  
+from cv_bridge import CvBridge, CvBridgeError
+from geometry_msgs.msg import PointStamped
+from object_interfaces.msg import DetectedObject
+from object_interfaces.msg import DetectedObjectArray
+from rclpy.duration import Duration
+from rclpy.executors import MultiThreadedExecutor
+from rclpy.node import Node
+from rclpy.qos import qos_profile_sensor_data
+from sensor_msgs.msg import CameraInfo, Image
+from tf2_ros import Buffer, TransformException, TransformListener
+from ultralytics import YOLO
+
+BALL_RADIUS_M = 0.030
+BALL_SHRINK = 0.6          
+BOX_SHRINK = 0.6
+BALL_Z_BAND = 0.05         
+BOX_Z_BAND = 0.15
+DEPTH_RANGE_M = (0.10, 5.0)
+MIN_BALL_POINTS = 30
+MIN_BOX_POINTS = 100
+SPHERE_MAX_RMS = 0.008     
+
+
+def cloud_from_bbox(depth, bbox, shrink, intr):
+    """Deproject the central `shrink` fraction of a bbox -> Nx3 points (camera frame)."""
+    x1, x2, y1, y2 = bbox
+    h, w = depth.shape[:2]
+    cx, cy = (x1 + x2) / 2.0, (y1 + y2) / 2.0
+    hw, hh = (x2 - x1) / 2.0 * shrink, (y2 - y1) / 2.0 * shrink
+    x0, x3 = max(0, int(cx - hw)), min(w, int(cx + hw) + 1)
+    y0, y3 = max(0, int(cy - hh)), min(h, int(cy + hh) + 1)
+
+    d = depth[y0:y3, x0:x3].astype(np.float32)
+    if depth.dtype == np.uint16:
+        d *= 0.001                                  
+    us, vs = np.meshgrid(np.arange(x0, x3), np.arange(y0, y3))
+    ok = np.isfinite(d) & (d > DEPTH_RANGE_M[0]) & (d < DEPTH_RANGE_M[1])
+    z = d[ok]
+    fx, fy, ppx, ppy = intr
+    return np.column_stack(((us[ok] - ppx) * z / fx, (vs[ok] - ppy) * z / fy, z))
+
+
+def clean_cloud(pts, z_band):
+    """Pass-through on depth around the median, then statistical outlier removal."""
+    if len(pts) == 0:
+        return pts
+    pts = pts[np.abs(pts[:, 2] - np.median(pts[:, 2])) < z_band]
+    if len(pts) < 10:
+        return pts
+    dist = np.linalg.norm(pts - np.median(pts, axis=0), axis=1)
+    med = np.median(dist)
+    mad = np.median(np.abs(dist - med))
+    return pts[dist <= med + 3.0 * 1.4826 * mad + 1e-6]
+
+
+def fit_sphere(pts, radius, iters=10):
+    """Gauss-Newton fit of a sphere centre with KNOWN radius. Returns (centre, rms)."""
+    mean = pts.mean(axis=0)
+    c = mean + mean / np.linalg.norm(mean) * radius   
+    for _ in range(iters):
+        d = pts - c
+        n = np.maximum(np.linalg.norm(d, axis=1), 1e-6)
+        step, *_ = np.linalg.lstsq(-d / n[:, None], -(n - radius), rcond=None)
+        c = c + step
+        if np.linalg.norm(step) < 1e-5:
+            break
+    res = np.linalg.norm(pts - c, axis=1) - radius
+    return c, float(np.sqrt(np.mean(res ** 2)))
+
+
+def estimate_center(kind, depth, bbox, intr):
+    """3-D position (camera frame) of the object, or None if the cloud is too thin."""
+    if kind == "ball":
+        pts = clean_cloud(cloud_from_bbox(depth, bbox, BALL_SHRINK, intr), BALL_Z_BAND)
+        if len(pts) < MIN_BALL_POINTS:
+            return None
+        centre, rms = fit_sphere(pts, BALL_RADIUS_M)
+        if rms > SPHERE_MAX_RMS:                      
+            m = pts.mean(axis=0)
+            centre = m + m / np.linalg.norm(m) * BALL_RADIUS_M
+        return centre
+    pts = clean_cloud(cloud_from_bbox(depth, bbox, BOX_SHRINK, intr), BOX_Z_BAND)
+    if len(pts) < MIN_BOX_POINTS:
+        return None
+    return pts.mean(axis=0)
+
+
+
+class PoseEstimation(Node):
+
+    def __init__(self):
+        super().__init__("pose_estimation_3d")
+
+        self.declare_parameter("rgb_topic", "/camera/camera/color/image_raw")
+        self.declare_parameter("depth_topic", "/camera/camera/aligned_depth_to_color/image_raw")
+        self.declare_parameter("camera_info_topic", "/camera/camera/color/camera_info")
+        self.declare_parameter(
+    "depth_optical_frame",
+    "camera_depth_optical_frame"
+)
+
+        self.depth_optical_frame = self.get_parameter(
+            "depth_optical_frame"
+        ).value
+        self.declare_parameter("global_frame", "map")
+        self.declare_parameter(
+            "yolo_model_path", "/home/startrace1/best.pt")
+        self.declare_parameter("conf_threshold", 0.6)
+        self.declare_parameter("dedup_dist", 0.4)
+        self.declare_parameter("ball_classes", ["ball"])
+        self.declare_parameter("box_classes", ["box"])
+        self.global_frame = self.get_parameter("global_frame").value
+        self.conf = self.get_parameter("conf_threshold").value
+        self.dedup_dist = self.get_parameter("dedup_dist").value
+        self.class_kinds = {}
+        for kind in ("ball", "box"):
+            for name in self.get_parameter(f"{kind}_classes").value:
+                self.class_kinds[name.lower()] = kind
+
+        self.bridge = CvBridge()
+        self.cam_model = None
+        self._busy = threading.Lock()
+        self.model = YOLO(self.get_parameter("yolo_model_path").value)
+        self.model.to("cpu")
+
+        self.tf_buffer = Buffer(cache_time=Duration(seconds=10))
+        self.tf_listener = TransformListener(self.tf_buffer, self)
+
+        self.objects_pub = self.create_publisher(DetectedObjectArray, "detected_objects", 10)
+        self.debug_pub = self.create_publisher(Image, "detection_image", 10)
+        self.create_subscription(
+            CameraInfo, self.get_parameter("camera_info_topic").value,
+            self._info_cb, qos_profile_sensor_data)
+        self.get_logger().info("camera topic received")
+       
+        rgb_sub = message_filters.Subscriber(
+            self, Image, self.get_parameter("rgb_topic").value,
+            qos_profile=qos_profile_sensor_data)
+        depth_sub = message_filters.Subscriber(
+            self, Image, self.get_parameter("depth_topic").value,
+            qos_profile=qos_profile_sensor_data)
+        self.sync = message_filters.ApproximateTimeSynchronizer(
+            [rgb_sub, depth_sub], queue_size=5, slop=0.05)
+        self.sync.registerCallback(self._frame_cb)
+
+        self.get_logger().info(f"Model classes: {self.model.names}")
+        self.get_logger().info(f"PoseEstimation ready. Class map: {self.class_kinds}")
+
+    def _info_cb(self, msg: CameraInfo):
+        if self.cam_model is None:
+            model = image_geometry.PinholeCameraModel()
+            model.fromCameraInfo(msg)
+            self.cam_model = model
+
+    def _frame_cb(self, rgb_msg: Image, depth_msg: Image):
+        self.get_logger().info("frame cb is called")
+        if self.cam_model is None or not self._busy.acquire(blocking=False):
+            return                                   
+        try:
+            self._process(rgb_msg, depth_msg)
+            self.get_logger().info("process func done")
+        except Exception as e:
+            self.get_logger().error(
+                f"Frame processing failed: {e!r}\n{traceback.format_exc()}")
+        finally:
+            self._busy.release()
+
+    def class_name(self, cls_id: int) -> str:
+        names = self.model.names
+        if isinstance(names, dict):
+            return names.get(cls_id, f"class_{cls_id}")
+        return names[cls_id] if cls_id < len(names) else f"class_{cls_id}"
+
+    def to_map(self, p, frame, stamp):
+        pt = PointStamped()
+        pt.header.frame_id = frame
+        pt.header.stamp = stamp
+    
+        pt.point.x = float(p[0])
+        pt.point.y = float(p[1])
+        pt.point.z = float(p[2])
+    
+        try:
+            
+            depth_pt = self.tf_buffer.transform(
+                pt,
+                self.depth_optical_frame,
+                timeout=Duration(seconds=0.2)
+            )
+    
+            
+            map_pt = self.tf_buffer.transform(
+                depth_pt,
+                self.global_frame,
+                timeout=Duration(seconds=0.2)
+            )
+    
+            return map_pt.point
+    
+        except TransformException as e:
+            self.get_logger().warn(
+                f"TF transformation failed: {e}"
+            )
+            return None
+
+    def _process(self, rgb_msg: Image, depth_msg: Image):
+        try:
+            bgr = self.bridge.imgmsg_to_cv2(rgb_msg, "bgr8")
+            self.get_logger().info("rgb frame received")
+            depth = self.bridge.imgmsg_to_cv2(depth_msg, "passthrough")
+            self.get_logger().info("depth frame received")
+        except CvBridgeError as e:
+            self.get_logger().error(f"cv_bridge error: {e}")
+            return
+        if depth.shape[:2] != bgr.shape[:2]:
+            self.get_logger().error(
+                f"Depth {depth.shape[:2]} != RGB {bgr.shape[:2]}: use aligned_depth_to_color",
+                throttle_duration_sec=5.0)
+            return
+
+        m = self.cam_model
+        intr = (m.fx(), m.fy(), m.cx(), m.cy())
+        frame = rgb_msg.header.frame_id
+        result = self.model(bgr, conf=self.conf, verbose=False)[0]
+
+        out = DetectedObjectArray()
+        out.header.stamp = self.get_clock().now().to_msg()
+        out.header.frame_id = self.global_frame
+
+        for box in result.boxes:
+            name = self.class_name(int(box.cls[0]))
+            conf = float(box.conf[0])
+           
+            x1, y1, x2, y2 = map(int, box.xyxy[0])
+            kind = self.class_kinds.get(name.lower(), "other")
+
+            centre = estimate_center(kind, depth, (x1, x2, y1, y2), intr)
+            label = f"{name} {conf:.2f}"
+            color = (0, 255, 0)
+            if centre is None:
+                color, label = (0, 0, 255), label + " no depth"
+            else:
+                label += f" z={centre[2]:.2f}m"
+            cv2.rectangle(bgr, (x1, y1), (x2, y2), color, 2)
+            cv2.putText(bgr, label, (x1, max(15, y1 - 8)),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+            if centre is None:
+                continue
+
+            p = self.to_map(centre, frame, rgb_msg.header.stamp)
+            if p is None:
+                continue
+            if any(o.class_name == name and
+                   math.hypot(o.pose.position.x - p.x, o.pose.position.y - p.y) < self.dedup_dist
+                   for o in out.objects):
+                continue
+
+            obj = DetectedObject()
+            obj.class_name = name
+            obj.confidence = conf
+            obj.pose.position.x, obj.pose.position.y, obj.pose.position.z = p.x, p.y, p.z
+            obj.pose.orientation.w = 1.0
+            out.objects.append(obj) 
+            self.get_logger().info(f"class name is :{obj.class_name} confidence is {obj.confidence} ")
+
+
+        if out.objects:
+            self.objects_pub.publish(out)
+        debug = self.bridge.cv2_to_imgmsg(bgr, encoding="passthrough")
+        debug.header = rgb_msg.header
+        self.debug_pub.publish(debug)
+
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = PoseEstimation()
+    executor = MultiThreadedExecutor(num_threads=4)
+    executor.add_node(node)
+    try:
+        executor.spin()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.destroy_node()
+        if rclpy.ok():
+            rclpy.shutdown()
+
+
+if __name__ == "__main__":
+    main()

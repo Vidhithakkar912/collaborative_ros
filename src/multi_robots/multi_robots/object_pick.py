@@ -62,7 +62,7 @@ WAIT_FOR_BALL_SEC = 15.0
 
 BALL_NAV_THRESHOLD = 0.50    
 NAV_STANDOFF_BALL=0.25   
-NAV_STANDOFF_BOX = 0.50
+NAV_STANDOFF_BOX = 0.30
 NAV_MIN_MOVE = 0.25           
 
 SEARCH_SPIN_SPEED = 0.3         
@@ -83,9 +83,9 @@ FINE_LINEAR_LIMITS = (0.02, 0.06)
 PLANNING_GROUP = "arm"
 EE_LINK = "end_effector_link"
 ARM_JOINTS = ("joint1", "joint2", "joint3", "joint4")
-PLAN_TIME_SEC = 8.0
+PLAN_TIME_SEC = 8.0 #changed from 8 to 3 
 EXECUTE_TIMEOUT_SEC = 30.0
-GOAL_TOLERANCES = (0.01, 0.02, 0.03)   
+GOAL_TOLERANCES = (0.01,0.02,0.03)    #removed  3
 CARTESIAN_STEP = 0.005                 
 CARTESIAN_MIN_FRACTION = 0.95
 GRASP_CONFIRM_TOL = 0.02
@@ -166,7 +166,7 @@ class PickAndPlaceNode(Node):
             "ball": [
                 
                 ("Wait for ball", lambda:self.wait_for_ball),
-                #("Find ball", lambda: self.search_for("ball")),
+                ("Find ball", lambda: self.search_for("ball")),
                 ("Nav2 if ball > 50 cm", self.approach_ball),
                 ("Fine align (cmd_vel)", self.fine_align),
                 ("Pick", self.pick),

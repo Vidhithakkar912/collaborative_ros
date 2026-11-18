@@ -1,0 +1,9 @@
+# config/robots.yaml  (skills decide what the agent is allowed to do with each robot)
+# skill names:  navigate | detect | track | find | pick | place
+robots:
+  - name: manipulator
+    enabled: true
+    skills: [navigate, detect, track, find, pick, place, agent]   # arm robot + own LLM agent
+  - name: sr2
+    enabled: true
+    skills: [navigate, detect, track, find, agent]         # no arm -> cannot pick/place
